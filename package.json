@@ -1,0 +1,134 @@
+{
+	"name": "cpp-compiler",
+	"displayName": "C++ 编译器",
+	"version": "1.6.0",
+	"publisher": "Wu_dream",
+	"description": "Wu_dream 制作的C++编译器",
+	"engines": {
+		"vscode": "^1.74.0"
+	},
+	"icon": "icon.png",
+	"categories": [
+		"Programming Languages",
+		"Other",
+		"C++",
+		"Better Compiler"
+	],
+	"activationEvents": [
+		"onLanguage:cpp"
+	],
+	"main": "./extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "cpp-compiler-sidebar",
+					"title": "C++ 编译器",
+					"icon": "sidebar-icon.svg"
+				}
+			]
+		},
+		"views": {
+			"cpp-compiler-sidebar": [
+				{
+					"type": "webview",
+					"id": "cppCompilerSidebar",
+					"name": "编译控制",
+					"icon": "sidebar-icon.svg",
+					"contextualTitle": "C++编译控制"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "cpp-compiler.runInternal",
+				"title": "cpp-compiler 运行：内置终端",
+				"icon": "$(play)"
+			},
+			{
+				"command": "cpp-compiler.runExternal",
+				"title": "cpp-compiler 运行：外部终端",
+				"icon": "$(terminal)"
+			},
+			{
+				"command": "cpp-compiler.cppCompile",
+				"title": "cpp-compiler 编译：仅编译",
+				"icon": "$(gear)"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "cpp-compiler.runExternal",
+				"key": "f11"
+			},
+			{
+				"command": "cpp-compiler.runInternal",
+				"key": "ctrl+f11"
+			},
+			{
+				"command": "cpp-compiler.cppCompile",
+				"key": "alt+f11"
+			}
+		],
+		"menus": {
+			"editor/title/run": [
+				{
+					"command": "cpp-compiler.runInternal",
+					"when": "resourceLangId == cpp",
+					"group": "cpp-compiler@1"
+				},
+				{
+					"command": "cpp-compiler.runExternal",
+					"when": "resourceLangId == cpp",
+					"group": "cpp-compiler@2"
+				},
+				{
+					"command": "cpp-compiler.cppCompile",
+					"when": "resourceLangId == cpp",
+					"group": "cpp-compiler@3"
+				}
+			]
+		},
+		"configuration": {
+			"title": "C++ 编译器",
+			"properties": {
+				"cpp-compiler.compileOptions": {
+					"type": "string",
+					"default": "-std=c++17 -Wall -O2",
+					"description": "用于编译C++文件的g++选项，例如：-std=c++17 -Wall -O2"
+				},
+				"cpp-compiler.useStaticLinking": {
+					"type": "boolean",
+					"default": false,
+					"description": "是否使用静态编译（添加 -static 选项），静态编译的程序可在其他同类系统上运行，无需依赖库，但文件体积较大"
+				},
+				"cpp-compiler.useConsoleInfo": {
+					"type": "boolean",
+					"default": false,
+					"description": "是否使用 ConsoleInfo.exe 来显示程序运行信息（警告：此选项仅可在 windows 系统生效，且必须下载 ConsoleInfo.exe 放于 PATH ！！！）"
+				},
+				"cpp-compiler.HashCacheInExtension": {
+					"type": "boolean",
+					"default": false,
+					"description": "Hash 缓存存放的位置，若取消勾选，则以文件存储于临时文件夹。否则将存在于内存中，关闭 vscode 窗口就会清除"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"lint": "eslint .",
+		"pretest": "npm run lint",
+		"test": "node ./test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/node": "16.x",
+		"@types/vscode": "^1.74.0",
+		"@vscode/test-electron": "^2.2.0",
+		"@vscode/vsce": "^3.6.0"
+	},
+	"__metadata": {
+		"installedTimestamp": 1757591903561,
+		"targetPlatform": "undefined",
+		"size": 129275
+	}
+}
