@@ -1,12 +1,13 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "1.6.0",
+	"version": "1.6.1",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {
 		"vscode": "^1.74.0"
 	},
+	"license": "MIT",
 	"icon": "icon.png",
 	"categories": [
 		"Programming Languages",
@@ -41,33 +42,24 @@
 		},
 		"commands": [
 			{
+				"command": "cpp-compiler.contextSubmenu",
+				"title": "cpp-compiler",
+				"icon": "$(code)"
+			},
+			{
 				"command": "cpp-compiler.runInternal",
-				"title": "cpp-compiler 运行：内置终端",
+				"title": "内置终端运行",
 				"icon": "$(play)"
 			},
 			{
 				"command": "cpp-compiler.runExternal",
-				"title": "cpp-compiler 运行：外部终端",
+				"title": "外部终端运行",
 				"icon": "$(terminal)"
 			},
 			{
 				"command": "cpp-compiler.cppCompile",
-				"title": "cpp-compiler 编译：仅编译",
+				"title": "仅编译",
 				"icon": "$(gear)"
-			}
-		],
-		"keybindings": [
-			{
-				"command": "cpp-compiler.runExternal",
-				"key": "f11"
-			},
-			{
-				"command": "cpp-compiler.runInternal",
-				"key": "ctrl+f11"
-			},
-			{
-				"command": "cpp-compiler.cppCompile",
-				"key": "alt+f11"
 			}
 		],
 		"menus": {
@@ -87,8 +79,49 @@
 					"when": "resourceLangId == cpp",
 					"group": "cpp-compiler@3"
 				}
+			],
+			"editor/context": [
+				{
+					"submenu": "cpp-compiler.contextSubmenu",
+					"when": "resourceLangId == cpp && resourceScheme == file",
+					"group": "navigation"
+				}
+			],
+			"cpp-compiler.contextSubmenu": [
+				{
+					"command": "cpp-compiler.runInternal",
+					"group": "cpp-run@1"
+				},
+				{
+					"command": "cpp-compiler.runExternal",
+					"group": "cpp-run@1"
+				},
+				{
+					"command": "cpp-compiler.cppCompile",
+					"group": "cpp-compile@1"
+				}
 			]
 		},
+		"submenus": [
+			{
+				"id": "cpp-compiler.contextSubmenu",
+				"label": "c++编译器"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "cpp-compiler.runExternal",
+				"key": "f11"
+			},
+			{
+				"command": "cpp-compiler.runInternal",
+				"key": "ctrl+f11"
+			},
+			{
+				"command": "cpp-compiler.cppCompile",
+				"key": "alt+f11"
+			}
+		],
 		"configuration": {
 			"title": "C++ 编译器",
 			"properties": {
@@ -105,7 +138,7 @@
 				"cpp-compiler.useConsoleInfo": {
 					"type": "boolean",
 					"default": false,
-					"description": "是否使用 ConsoleInfo.exe 来显示程序运行信息（警告：此选项仅可在 windows 系统生效，且必须下载 ConsoleInfo.exe 放于 PATH ！！！）"
+					"description": "是否使用 ConsoleInfo.exe 来显示程序运行信息（警告：此选项仅可在 windows 系统生效）"
 				},
 				"cpp-compiler.HashCacheInExtension": {
 					"type": "boolean",
