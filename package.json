@@ -144,6 +144,40 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Hash 缓存存放的位置，若取消勾选，则以文件存储于临时文件夹。否则将存在于内存中，关闭 vscode 窗口就会清除"
+				},
+				"cpp-compiler.inputFile": {
+					"type": "string",
+					"default": "input.txt",
+					"minLength": 1,
+					"description": "文件读写的输入文件路径"
+				},
+				"cpp-compiler.outputFile": {
+					"type": "string",
+					"default": "output.txt",
+					"minLength": 1,
+					"description": "文件读写的输出文件路径"
+				},
+				"cpp-compiler.unFileInputFile": {
+					"type": "string",
+					"default": "input.txt",
+					"minLength": 1,
+					"description": "反文件读写的输入文件路径"
+				},
+				"cpp-compiler.unFileOutputFile": {
+					"type": "string",
+					"default": "input.txt",
+					"minLength": 1,
+					"description": "反文件读写的输出文件路径"
+				},
+				"cpp-compiler.useFileRedirect": {
+					"type": "boolean",
+					"default": false,
+					"description": "启用文件读写"
+				},
+				"cpp-compiler.useUnFileRedirect": {
+					"type": "boolean",
+					"default": false,
+					"description": "启用反文件读写（警告：此选项仅可在 windows 系统生效）"
 				}
 			}
 		}
@@ -157,11 +191,10 @@
 		"@types/node": "16.x",
 		"@types/vscode": "^1.74.0",
 		"@vscode/test-electron": "^2.2.0",
-		"@vscode/vsce": "^3.6.0"
-	},
-	"__metadata": {
-		"installedTimestamp": 1757591903561,
-		"targetPlatform": "undefined",
-		"size": 129275
+		"@vscode/vsce": "^2.15.0",
+		"eslint": "^8.6.0",
+		"glob": "^7.2.0",
+		"mocha": "^9.2.0",
+		"typescript": "^4.5.4"
 	}
 }
