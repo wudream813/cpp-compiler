@@ -5,7 +5,7 @@
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        printf("Áî®Ê≥ïÔºöConsoleInfo.exe <command>\n");
+        printf("”√∑®£∫ConsoleInfo.exe <command>\n");
         return -1;
     }
 
@@ -24,50 +24,50 @@ int main(int argc, char* argv[]) {
     QueryPerformanceCounter(&StartingTime);
 
     if (!CreateProcess(NULL, Command, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo)) {
-        printf("\nÊó†Ê≥ïÂàõÂª∫ËøõÁ®ãÔºö%s", Command);
+        printf("\nŒﬁ∑®¥¥Ω®Ω¯≥Ã£∫%s", Command);
         return -1;
     }
 
-    // Á≠âÂæÖËøõÁ®ãÁªìÊùü
+    // µ»¥˝Ω¯≥ÃΩ· ¯
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
     
-    // Ëé∑ÂèñËøõÁ®ãÂÜÖÂ≠ò‰ø°ÊÅØ
+    // ªÒ»°Ω¯≥Ãƒ⁄¥Ê–≈œ¢
     GetProcessMemoryInfo(ProcessInfo.hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
     
-    // Ëé∑ÂèñËøõÁ®ãCPUÊó∂Èó¥
+    // ªÒ»°Ω¯≥ÃCPU ±º‰
     FILETIME creationTime, exitTime, kernelTime, userTime;
     GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
     
-    // ËÆ°ÁÆóÊÄªËøêË°åÊó∂Èó¥
+    // º∆À„◊‹‘À–– ±º‰
     QueryPerformanceCounter(&EndingTime);
     LONGLONG executionTime = (EndingTime.QuadPart - StartingTime.QuadPart) * 1000000 / Frequency.QuadPart;
     
-    // Ëé∑ÂèñÁ®ãÂ∫èÈÄÄÂá∫‰ª£Á†Å
+    // ªÒ»°≥Ã–ÚÕÀ≥ˆ¥˙¬Î
     DWORD returnValue;
     GetExitCodeProcess(ProcessInfo.hProcess, &returnValue);
     
-    // Â∞ÜFILETIMEËΩ¨Êç¢‰∏∫ÂæÆÁßí
+    // Ω´FILETIME◊™ªªŒ™Œ¢√Î
     ULARGE_INTEGER kernelTimeUL, userTimeUL;
     kernelTimeUL.LowPart = kernelTime.dwLowDateTime;
     kernelTimeUL.HighPart = kernelTime.dwHighDateTime;
     userTimeUL.LowPart = userTime.dwLowDateTime;
     userTimeUL.HighPart = userTime.dwHighDateTime;
     
-    ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10; // ËΩ¨Êç¢‰∏∫ÂæÆÁßí
-    ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;     // ËΩ¨Êç¢‰∏∫ÂæÆÁßí
+    ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10; // ◊™ªªŒ™Œ¢√Î
+    ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;     // ◊™ªªŒ™Œ¢√Î
     
-    // ÂÖ≥Èó≠ËøõÁ®ãÂè•ÊüÑ
+    // πÿ±’Ω¯≥Ãæ‰±˙
     CloseHandle(ProcessInfo.hProcess);
     CloseHandle(ProcessInfo.hThread);
     
-    // ËæìÂá∫ÁªìÊûú
+    //  ‰≥ˆΩ·π˚
     printf("\n-----------------------------------------------");
-    printf("\nÊÄªÊâßË°åÊó∂Èó¥Ôºö%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÂÜÖÂ≠ò‰ΩøÁî®Ôºö%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUÂÜÖÊ†∏Êó∂Èó¥Ôºö%.3f Áßí", totalKernelTime / 1000000.0);
-    printf("\nCPUÁî®Êà∑Êó∂Èó¥Ôºö%.3f Áßí", totalUserTime / 1000000.0);
-    printf("\nÊÄªCPUÊó∂Èó¥Ôºö%.3f Áßí", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\nÁ®ãÂ∫èËøîÂõûÂÄºÔºö%ld (0x%lX)", returnValue, returnValue);
+    printf("\n◊‹÷¥–– ±º‰£∫%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nƒ⁄¥Ê π”√£∫%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
+    printf("\nCPUƒ⁄∫À ±º‰£∫%.3f √Î", totalKernelTime / 1000000.0);
+    printf("\nCPU”√ªß ±º‰£∫%.3f √Î", totalUserTime / 1000000.0);
+    printf("\n◊‹CPU ±º‰£∫%.3f √Î", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\n≥Ã–Ú∑µªÿ÷µ£∫%ld (0x%lX)", returnValue, returnValue);
     printf("\n-----------------------------------------------");
     return 0;
 }
