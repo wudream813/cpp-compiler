@@ -405,7 +405,6 @@ class CppCompilerSidebarProvider {
         });
     }
 
-
     resolveWebviewView(webviewView) {
         sidebarPanel = webviewView;
 
@@ -484,7 +483,6 @@ class CppCompilerSidebarProvider {
                         showCommand(`用户在侧边栏更新了输入文件，输入文件现在为：${data.value}`);
                         const inputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await inputConfig.update('inputFile', data.value, vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage('输入文件路径已更新！');
                     }else{
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
@@ -495,7 +493,6 @@ class CppCompilerSidebarProvider {
                         showCommand(`用户在侧边栏更新了输出文件，输出文件现在为：${data.value}`);
                         const outputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await outputConfig.update('outputFile', data.value, vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage('输出文件路径已更新！');
                     }else{
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
@@ -506,7 +503,6 @@ class CppCompilerSidebarProvider {
                         showCommand(`用户在侧边栏更新了反文件输入文件，反文件输入文件现在为：${data.value}`);
                         const unFileInputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await unFileInputConfig.update('unFileInputFile', data.value, vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage('反文件输入文件路径已更新！');
                     }else{
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
@@ -517,7 +513,6 @@ class CppCompilerSidebarProvider {
                         showCommand(`用户在侧边栏更新了反文件输出文件，反文件输出文件现在为：${data.value}`);
                         const unFileOutputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await unFileOutputConfig.update('unFileOutputFile', data.value, vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage('反文件输出文件路径已更新！');
                     }else{
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
@@ -584,7 +579,7 @@ class CppCompilerSidebarProvider {
         const unFileOutputFile = getConfig('unFileOutputFile') || 'output.txt';
         const useFileRedirect = getConfig('useFileRedirect') || false;
         const useUnFileRedirect = getConfig('useUnFileRedirect') || false;
-
+    
         return `<!DOCTYPE html>
         <html lang="zh-CN">
         <head>
@@ -592,76 +587,167 @@ class CppCompilerSidebarProvider {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>C++编译控制</title>
             <style>
-                /* 主容器样式 - 恢复并增强容器视觉效果 */
-                .container {
-                    padding: 10px;
+                * {
+                    margin: 0;
+                    padding: 0;
                     box-sizing: border-box;
+                }
+                
+                .container {
+                    padding: 12px;
                     background-color: var(--vscode-sideBar-background);
                     min-height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    /* 固定容器宽度（匹配VS Code侧边栏默认宽度），避免拉伸 */
+                    width: 100%;
                 }
-                
-                /* 区块容器样式 - 明显的视觉分隔 */
-                .section {
-                    margin-bottom: 15px;
-                    padding: 10px;
-                    border-radius: 4px;
+            
+                /* 区块容器样式 */
+                .collapsible-section {
+                    border-radius: 6px;
                     background-color: var(--vscode-sideBarSectionHeader-background);
-                    border: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
-                    box-sizing: border-box;
+                    border: 1px solid var(--vscode-panel-border);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                    transition: box-shadow 0.2s ease;
+                    /* 关键：强制占满父容器宽度，且宽度不随内容变化 */
+                    width: 100%;
+                    min-width: 100%;
                 }
-                
-                .title {
-                    font-weight: bold;
-                    margin-bottom: 8px;
+            
+                .collapsible-section:hover {
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                }
+            
+                /* 标题栏样式 */
+                .section-header {
+                    font-weight: 600;
+                    padding: 10px 14px;
                     color: var(--vscode-titleBar-activeForeground);
                     font-size: 14px;
-                    padding-bottom: 4px;
-                    border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    cursor: pointer;
+                    user-select: none;
                 }
                 
+                .section-header:hover {
+                    background-color: rgba(255, 255, 255, 0.05);
+                }
+                
+                .section-title {
+                    display: flex;
+                    align-items: center;
+                }
+                
+                .section-title::before {
+                    content: '';
+                    display: inline-block;
+                    width: 3px;
+                    height: 14px;
+                    background: var(--vscode-button-background);
+                    margin-right: 8px;
+                    border-radius: 2px;
+                }
+                
+                .collapse-icon {
+                    transition: transform 0.2s ease;
+                    font-size: 16px;
+                }
+                
+                .rotate {
+                    transform: rotate(90deg);
+                }
+                
+                /* 内容区域样式 */
+                .section-content {
+                    /* 左右内边距固定14px，仅上下内边距随折叠状态变化 */
+                    padding: 0 14px;
+                    max-height: 0;
+                    overflow: hidden;
+                    /* 仅过渡上下内边距和最大高度，避免宽度相关动画 */
+                    transition: max-height 0.2s ease-in-out, padding-top 0.2s ease-in-out, padding-bottom 0.2s ease-in-out;
+                }
+                
+                .section-content.expanded {
+                    /* 展开时仅增加上下内边距，左右内边距保持14px不变 */
+                    padding: 14px 14px;
+                    max-height: 800px;
+                }
+            
                 /* 输入框样式 */
                 input[type="text"] {
                     width: 100%;
-                    padding: 6px 8px;
+                    padding: 8px 12px;
                     border: 1px solid var(--vscode-input-border);
                     background-color: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
                     font-size: 13px;
                     box-sizing: border-box;
-                    height: 28px;
-                    overflow: hidden;
-                    white-space: nowrap;
-                    margin-bottom: 8px;
+                    height: 32px;
+                    border-radius: 4px;
+                    transition: all 0.2s ease;
+                    font-family: var(--vscode-font-family);
+                }
+            
+                input[type="text"]:focus {
+                    border-color: var(--vscode-focusBorder);
+                    outline: none;
+                    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.15);
                 }
                 
+                input[type="text"]::placeholder {
+                    color: var(--vscode-input-placeholderForeground);
+                }
+            
                 .button-group {
                     display: flex;
                     flex-direction: column;
                     gap: 8px;
-                    margin-top: 10px;
+                    margin-top: 12px;
                 }
                 
                 button {
-                    padding: 8px;
+                    padding: 10px;
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
-                    border: 1px solid transparent;
+                    border: none;
                     border-radius: 4px;
                     cursor: pointer;
                     font-size: 13px;
-                    transition: background-color 0.2s;
+                    font-weight: 500;
+                    /* 添加按钮过渡动画 */
+                    transition: all 0.2s ease-in-out;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    /* 基础阴影 */
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
                 }
                     
                 button:disabled {
                     background-color: var(--vscode-button-background);
-                    opacity: 0.5;
+                    opacity: 0.6;
                     cursor: not-allowed;
-                    color: #d8d5d5;
-                    border: 1px solid var(--vscode-input-border);
+                    box-shadow: none;
+                    transform: none;
                 }
                 
-                button:hover {
+                button:hover:not(:disabled) {
                     background-color: var(--vscode-button-hoverBackground);
+                    /* 悬停时增强阴影 */
+                    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+                    /* 轻微上浮效果 */
+                    transform: translateY(-1px);
+                }
+                
+                button:active:not(:disabled) {
+                    /* 点击时阴影收缩 */
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                    /* 点击时下沉效果 */
+                    transform: translateY(0);
                 }
                 
                 .checkbox-container {
@@ -669,169 +755,210 @@ class CppCompilerSidebarProvider {
                     align-items: center;
                     margin: 10px 0;
                     font-size: 13px;
+                    padding: 6px 0;
                 }
                 
                 input[type="checkbox"] {
                     margin-right: 8px;
-                    width: 14px;
-                    height: 14px;
+                    width: 16px;
+                    height: 16px;
+                    accent-color: var(--vscode-button-background);
+                    cursor: pointer;
                 }
                 
                 .save-options-container {
-                    margin-top: 8px;
+                    margin-top: 10px;
                     display: flex;
                     justify-content: center;
                 }
                 
                 #saveOptions {
-                    padding: 6px 16px;
+                    padding: 8px 20px;
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
                 }
                 
                 .file-input-container {
                     margin-bottom: 10px;
+                    position: relative;
                 }
                 
                 .file-input-label {
                     display: block;
-                    margin-bottom: 4px;
+                    margin-bottom: 6px;
                     font-size: 13px;
                     color: var(--vscode-descriptionForeground);
-                }
-                
-                .file-input-with-button {
-                    display: flex;
-                    gap: 8px;
-                    align-items: center;
-                }
-                
-                .file-input-with-button input {
-                    flex: 1;
-                    margin-bottom: 0;
-                }
-                
-                .file-input-with-button button {
-                    padding: 6px 12px;
-                    white-space: nowrap;
+                    font-weight: 500;
                 }
                 
                 .subsection {
-                    margin-bottom: 15px;
-                    padding: 8px;
-                    border-radius: 4px;
+                    margin-bottom: 12px;
+                    padding: 12px;
+                    border-radius: 5px;
                     background-color: var(--vscode-sideBar-background);
-                    border: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
-                    box-sizing: border-box;
+                    border: 1px solid var(--vscode-panel-border);
+                    /* 继承盒模型，宽度不超出父容器 */
+                    width: 100%;
                 }
                 
                 .subsection-title {
-                    font-weight: bold;
-                    margin-bottom: 6px;
+                    font-weight: 600;
+                    margin-bottom: 8px;
                     color: var(--vscode-titleBar-activeForeground);
                     font-size: 13px;
-                    padding-bottom: 2px;
-                    border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder);
+                    padding-bottom: 5px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                
+                .save-status {
+                    position: absolute;
+                    right: 0;
+                    top: 0;
+                    font-size: 12px;
+                    color: var(--vscode-testing-iconPassed);
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    pointer-events: none;
+                }
+                
+                .save-status.visible {
+                    opacity: 1;
+                }
+                
+                .disabled-section {
+                    opacity: 0.6;
                 }
             </style>
         </head>
         <body>
             <!-- 主容器 -->
             <div class="container">
-                <!-- 编译选项区块 -->
-                <div class="section">
-                    <div class="title">编译选项</div>
-                    <input type="text" id="compileOptions" value="${compileOptions.replace(/"/g, '&quot;')}">
-                    <div class="save-options-container">
-                        <button id="saveOptions">保存编译选项</button>
+                <!-- 编译选项区块（可折叠） -->
+                <div class="collapsible-section">
+                    <div class="section-header" data-section="compileOptions">
+                        <div class="section-title">编译选项</div>
+                        <span class="collapse-icon">▶</span>
                     </div>
-                    <div class="checkbox-container">
-                        <input type="checkbox" id="staticLinking" ${useStatic ? 'checked' : ''}>
-                        <label for="staticLinking">使用静态链接</label>
+                    <div class="section-content expanded" id="compileOptionsContent">
+                        <input type="text" id="compileOptions" value="${compileOptions.replace(/"/g, '&quot;')}" placeholder="输入编译选项，如：-std=c++17 -Wall">
+                        <div class="save-options-container">
+                            <button id="saveOptions">保存编译选项</button>
+                        </div>
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="staticLinking" ${useStatic ? 'checked' : ''}>
+                            <label for="staticLinking">使用静态链接</label>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- 文件读写区块 -->
-                <div class="section">
-                    <div class="title">文件读写操作</div>
-                    
-                    <!-- 文件读写子区块 -->
-                    <div class="subsection">
-                        <div class="subsection-title">文件读写</div>
-                        <div class="file-input-container">
-                            <div class="file-input-label">输入文件:</div>
-                            <div class="file-input-with-button">
-                                <input type="text" id="inputFile" value="${inputFile.replace(/"/g, '&quot;')}" placeholder="输入文件路径">
-                                <button id="saveInputFile">保存</button>
-                            </div>
-                        </div>
-                        <div class="file-input-container">
-                            <div class="file-input-label">输出文件:</div>
-                            <div class="file-input-with-button">
-                                <input type="text" id="outputFile" value="${outputFile.replace(/"/g, '&quot;')}" placeholder="输出文件路径">
-                                <button id="saveOutputFile">保存</button>
-                            </div>
-                        </div>
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="useFileRedirect" ${useFileRedirect ? 'checked' : ''}>
-                            <label for="useFileRedirect">启用文件读写</label>
-                        </div>
+                <!-- 运行控制区块（可折叠） -->
+                <div class="collapsible-section">
+                    <div class="section-header" data-section="runControl">
+                        <div class="section-title">运行控制</div>
+                        <span class="collapse-icon">▶</span>
                     </div>
-                    
-                    <!-- 反文件读写子区块 -->
-                    <div class="subsection">
-                        <div class="subsection-title">反文件读写</div>
-                        <div class="file-input-container">
-                            <div class="file-input-label">输入文件:</div>
-                            <div class="file-input-with-button">
-                                <input type="text" id="unFileInputFile" value="${unFileInputFile.replace(/"/g, '&quot;')}" placeholder="反文件输入文件路径">
-                                <button id="saveUnFileInputFile">保存</button>
-                            </div>
-                        </div>
-                        <div class="file-input-container">
-                            <div class="file-input-label">输出文件:</div>
-                            <div class="file-input-with-button">
-                                <input type="text" id="unFileOutputFile" value="${unFileOutputFile.replace(/"/g, '&quot;')}" placeholder="反文件输出文件路径">
-                                <button id="saveUnFileOutputFile">保存</button>
-                            </div>
+                    <div class="section-content expanded" id="runControlContent">
+                        <div class="button-group">
+                            <button id="runInternal">内置终端运行</button>
+                            <button id="runExternal">外部终端运行</button>
+                            <button id="onlyCompile">仅编译</button>
                         </div>
                         ${process.platform === 'win32' ? `
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="useUnFileRedirect" ${useUnFileRedirect ? 'checked' : ''}>
-                            <label for="useUnFileRedirect">启用反文件读写</label>
-                        </div>
-                        ` : `
-                        <div class="checkbox-container" style="opacity: 0.5;" title="此功能仅在 Windows 系统上可用">
-                            <input type="checkbox" id="useUnFileRedirect" disabled>
-                            <label for="useUnFileRedirect">启用反文件读写 (仅 Windows)</label>
-                        </div>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="useConsoleInfo" ${useConsoleInfo ? 'checked' : ''}>
+                                <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序</label>
+                            </div>
+                            ` : `
+                            <div class="checkbox-container disabled-section">
+                                <input type="checkbox" id="useConsoleInfo" disabled>
+                                <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序 (仅 Windows)</label>
+                            </div>
                         `}
                     </div>
                 </div>
                 
-                <!-- 运行控制区块 -->
-                <div class="section">
-                    <div class="title">运行控制</div>
-                    <div class="button-group">
-                        <button id="runInternal">内置终端运行</button>
-                        <button id="runExternal">外部终端运行</button>
-                        <button id="onlyCompile">仅编译</button>
+                <!-- 文件读写区块（可折叠） -->
+                <div class="collapsible-section">
+                    <div class="section-header" data-section="fileOperations">
+                        <div class="section-title">文件读写操作</div>
+                        <span class="collapse-icon">▶</span>
                     </div>
-                    ${process.platform === 'win32' ? `
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="useConsoleInfo" ${useConsoleInfo ? 'checked' : ''}>
-                            <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序</label>
+                    <div class="section-content expanded" id="fileOperationsContent">
+                        <!-- 文件读写子区块 -->
+                        <div class="subsection">
+                            <div class="subsection-title">文件读写</div>
+                            <div class="file-input-container">
+                                <div class="file-input-label">输入文件</div>
+                                <input type="text" id="inputFile" value="${inputFile.replace(/"/g, '&quot;')}" placeholder="输入文件路径">
+                                <div class="save-status" id="inputFileStatus">✓ 已保存</div>
+                            </div>
+                            <div class="file-input-container">
+                                <div class="file-input-label">输出文件</div>
+                                <input type="text" id="outputFile" value="${outputFile.replace(/"/g, '&quot;')}" placeholder="输出文件路径">
+                                <div class="save-status" id="outputFileStatus">✓ 已保存</div>
+                            </div>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="useFileRedirect" ${useFileRedirect ? 'checked' : ''}>
+                                <label for="useFileRedirect">启用文件读写</label>
+                            </div>
                         </div>
-                        ` : `
-                        <div class="checkbox-container" style="opacity: 0.5;" title="此功能仅在 Windows 系统上可用">
-                            <input type="checkbox" id="useConsoleInfo" disabled>
-                            <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序 (仅 Windows)</label>
+                        
+                        <!-- 反文件读写子区块 -->
+                        <div class="subsection">
+                            <div class="subsection-title">反文件读写</div>
+                            <div class="file-input-container">
+                                <div class="file-input-label">输入文件</div>
+                                <input type="text" id="unFileInputFile" value="${unFileInputFile.replace(/"/g, '&quot;')}" placeholder="反文件输入文件路径">
+                                <div class="save-status" id="unFileInputFileStatus">✓ 已保存</div>
+                            </div>
+                            <div class="file-input-container">
+                                <div class="file-input-label">输出文件</div>
+                                <input type="text" id="unFileOutputFile" value="${unFileOutputFile.replace(/"/g, '&quot;')}" placeholder="反文件输出文件路径">
+                                <div class="save-status" id="unFileOutputFileStatus">✓ 已保存</div>
+                            </div>
+                            ${process.platform === 'win32' ? `
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="useUnFileRedirect" ${useUnFileRedirect ? 'checked' : ''}>
+                                <label for="useUnFileRedirect">启用反文件读写</label>
+                            </div>
+                            ` : `
+                            <div class="checkbox-container disabled-section">
+                                <input type="checkbox" id="useUnFileRedirect" disabled>
+                                <label for="useUnFileRedirect">启用反文件读写 (仅 Windows)</label>
+                            </div>
+                            `}
                         </div>
-                    `}
+                    </div>
                 </div>
             </div>
-
+    
             <script>
                 const vscode = acquireVsCodeApi();
                 
+                // 初始化可折叠功能
+                document.querySelectorAll('.section-header').forEach(header => {
+                    header.addEventListener('click', () => {
+                        // 获取对应的内容区域和图标
+                        const sectionId = header.getAttribute('data-section');
+                        const content = document.getElementById(sectionId + 'Content');
+                        const icon = header.querySelector('.collapse-icon');
+                        
+                        // 切换展开/折叠状态
+                        content.classList.toggle('expanded');
+                        icon.classList.toggle('rotate');
+                    });
+                });
+                
+                // 显示保存状态
+                function showSaveStatus(elementId) {
+                    const statusElement = document.getElementById(elementId);
+                    statusElement.classList.add('visible');
+                    setTimeout(() => {
+                        statusElement.classList.remove('visible');
+                    }, 2000);
+                }
+                
+                // 保存编译选项
                 document.getElementById('saveOptions').addEventListener('click', () => {
                     const options = document.getElementById('compileOptions').value.trim();
                     vscode.postMessage({
@@ -840,6 +967,7 @@ class CppCompilerSidebarProvider {
                     });
                 });
                 
+                // 静态链接选项
                 document.getElementById('staticLinking').addEventListener('change', (e) => {
                     vscode.postMessage({
                         type: 'toggleStaticLinking',
@@ -847,6 +975,7 @@ class CppCompilerSidebarProvider {
                     });
                 });
                 
+                // ConsoleInfo选项
                 document.getElementById('useConsoleInfo').addEventListener('change', (e) => {
                     vscode.postMessage({
                         type: 'toggleuseConsoleInfo',
@@ -854,38 +983,55 @@ class CppCompilerSidebarProvider {
                     });
                 });
                 
-                document.getElementById('saveInputFile').addEventListener('click', () => {
-                    const inputFile = document.getElementById('inputFile').value.trim();
-                    vscode.postMessage({
-                        type: 'updateInputFile',
-                        value: inputFile
-                    });
+                // 文件读写输入框失去焦点时保存
+                document.getElementById('inputFile').addEventListener('blur', (e) => {
+                    const inputFile = e.target.value.trim();
+                    if (inputFile) {
+                        vscode.postMessage({
+                            type: 'updateInputFile',
+                            value: inputFile
+                        });
+                        showSaveStatus('inputFileStatus');
+                    }
                 });
                 
-                document.getElementById('saveOutputFile').addEventListener('click', () => {
-                    const outputFile = document.getElementById('outputFile').value.trim();
-                    vscode.postMessage({
-                        type: 'updateOutputFile',
-                        value: outputFile
-                    });
+                // 文件读写输出框失去焦点时保存
+                document.getElementById('outputFile').addEventListener('blur', (e) => {
+                    const outputFile = e.target.value.trim();
+                    if (outputFile) {
+                        vscode.postMessage({
+                            type: 'updateOutputFile',
+                            value: outputFile
+                        });
+                        showSaveStatus('outputFileStatus');
+                    }
                 });
                 
-                document.getElementById('saveUnFileInputFile').addEventListener('click', () => {
-                    const unFileInputFile = document.getElementById('unFileInputFile').value.trim();
-                    vscode.postMessage({
-                        type: 'updateUnFileInputFile',
-                        value: unFileInputFile
-                    });
+                // 反文件读写输入框失去焦点时保存
+                document.getElementById('unFileInputFile').addEventListener('blur', (e) => {
+                    const unFileInputFile = e.target.value.trim();
+                    if (unFileInputFile) {
+                        vscode.postMessage({
+                            type: 'updateUnFileInputFile',
+                            value: unFileInputFile
+                        });
+                        showSaveStatus('unFileInputFileStatus');
+                    }
                 });
                 
-                document.getElementById('saveUnFileOutputFile').addEventListener('click', () => {
-                    const unFileOutputFile = document.getElementById('unFileOutputFile').value.trim();
-                    vscode.postMessage({
-                        type: 'updateUnFileOutputFile',
-                        value: unFileOutputFile
-                    });
+                // 反文件读写输出框失去焦点时保存
+                document.getElementById('unFileOutputFile').addEventListener('blur', (e) => {
+                    const unFileOutputFile = e.target.value.trim();
+                    if (unFileOutputFile) {
+                        vscode.postMessage({
+                            type: 'updateUnFileOutputFile',
+                            value: unFileOutputFile
+                        });
+                        showSaveStatus('unFileOutputFileStatus');
+                    }
                 });
                 
+                // 文件重定向选项
                 document.getElementById('useFileRedirect').addEventListener('change', (e) => {
                     vscode.postMessage({
                         type: 'toggleFileRedirect',
@@ -893,6 +1039,7 @@ class CppCompilerSidebarProvider {
                     });
                 });
                 
+                // 反文件重定向选项
                 document.getElementById('useUnFileRedirect').addEventListener('change', (e) => {
                     vscode.postMessage({
                         type: 'toggleUnFileRedirect',
@@ -900,6 +1047,7 @@ class CppCompilerSidebarProvider {
                     });
                 });
                 
+                // 运行按钮
                 document.getElementById('runInternal').addEventListener('click', () => {
                     vscode.postMessage({ type: 'runInternal' });
                 });
@@ -912,18 +1060,13 @@ class CppCompilerSidebarProvider {
                     vscode.postMessage({ type: 'onlyCompile' });
                 });
                 
+                // 监听来自扩展的消息
                 window.addEventListener('message', event => {
                     const data = event.data;
                     if (data.type === 'updateButtonStates') {
                         document.getElementById('runInternal').disabled = !data.enabled;
                         document.getElementById('runExternal').disabled = !data.enabled;
                         document.getElementById('onlyCompile').disabled = !data.enabled;
-                        
-                        // 添加提示信息
-                        const tips = data.enabled ? '' : '请打开本地C++文件以启用此功能';
-                        document.getElementById('runInternal').title = tips;
-                        document.getElementById('runExternal').title = tips;
-                        document.getElementById('onlyCompile').title = tips;
                     }
                     if (data.type === 'updateConfig') {
                         document.getElementById('compileOptions').value = data.compileOptions;
@@ -935,8 +1078,6 @@ class CppCompilerSidebarProvider {
                         document.getElementById('unFileOutputFile').value = data.unFileOutputFile;
                         document.getElementById('useFileRedirect').checked = data.useFileRedirect;
                         document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
-                    } else if (data.type === 'showError') {
-                        alert(data.message);
                     }
                 });
             </script>
