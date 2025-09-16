@@ -1,7 +1,7 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "2.0.0",
+	"version": "2.3.0",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {
@@ -13,7 +13,8 @@
 		"Programming Languages",
 		"Other",
 		"C++",
-		"Better Compiler"
+		"Better Compiler",
+		"OIer"
 	],
 	"activationEvents": [
 		"onLanguage:cpp"
@@ -144,40 +145,6 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Hash 缓存存放的位置，若取消勾选，则以文件存储于临时文件夹。否则将存在于内存中，关闭 vscode 窗口就会清除"
-				},
-				"cpp-compiler.inputFile": {
-					"type": "string",
-					"default": "input.txt",
-					"minLength": 1,
-					"description": "文件读写的输入文件路径"
-				},
-				"cpp-compiler.outputFile": {
-					"type": "string",
-					"default": "output.txt",
-					"minLength": 1,
-					"description": "文件读写的输出文件路径"
-				},
-				"cpp-compiler.unFileInputFile": {
-					"type": "string",
-					"default": "input.txt",
-					"minLength": 1,
-					"description": "反文件读写的输入文件路径"
-				},
-				"cpp-compiler.unFileOutputFile": {
-					"type": "string",
-					"default": "input.txt",
-					"minLength": 1,
-					"description": "反文件读写的输出文件路径"
-				},
-				"cpp-compiler.useFileRedirect": {
-					"type": "boolean",
-					"default": false,
-					"description": "启用文件读写"
-				},
-				"cpp-compiler.useUnFileRedirect": {
-					"type": "boolean",
-					"default": false,
-					"description": "启用反文件读写（警告：此选项仅可在 windows 系统生效）"
 				}
 			}
 		}
