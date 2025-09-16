@@ -5,9 +5,9 @@ const os = require('os');
 const { exec } = require('child_process');
 
 function makeTerminal() {
-    if(process.platform === 'win32'){
-        return vscode.window.createTerminal({name:"cpp-compiler:运行", shellPath:"C:\\Windows\\System32\\cmd.exe"});
-    }else{
+    if (process.platform === 'win32') {
+        return vscode.window.createTerminal({ name: "cpp-compiler:运行", shellPath: "C:\\Windows\\System32\\cmd.exe" });
+    } else {
         return vscode.window.createTerminal("cpp-compiler:运行");
     }
 }
@@ -70,7 +70,7 @@ function GetOutPath(cppPath) {
 
 // 保存哈希缓存
 function saveHashCache(filePath, options, hash) {
-    if(!getConfig('HashCacheInExtension')){
+    if (!getConfig('HashCacheInExtension')) {
         const cachePath = path.join(os.tmpdir(), '.cpp_compiler_cache.json');
 
         try {
@@ -84,7 +84,7 @@ function saveHashCache(filePath, options, hash) {
     }
     const key = `${filePath}|${options}`;
     cache[key] = hash;
-    if(!getConfig('HashCacheInExtension')){
+    if (!getConfig('HashCacheInExtension')) {
         const cachePath = path.join(os.tmpdir(), '.cpp_compiler_cache.json');
         try {
             fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2), 'utf8');
@@ -96,7 +96,7 @@ function saveHashCache(filePath, options, hash) {
 
 // 获取缓存的哈希数据
 function getCachedHash(filePath, options) {
-    if(!getConfig('HashCacheInExtension')){
+    if (!getConfig('HashCacheInExtension')) {
         const cachePath = path.join(os.tmpdir(), '.cpp_compiler_cache.json');
 
         try {
@@ -198,7 +198,7 @@ async function OnlyCompile(askUser) {
 
         const compileCommand = `g++ "${filePath}" ${compileOptions} -o "${outputPath}"`;
         showCommand(`开始编译，编译程序：${filePath}，编译命令：${compileCommand}`);
-        
+
         compileStatus.text = '$(loading~spin) 正在编译...';
         compileStatus.show();
 
@@ -210,7 +210,7 @@ async function OnlyCompile(askUser) {
                     compileStatus.text = '$(error) 编译失败';
                     compileStatus.show();
                     showText(error.message);
-                    
+
                     setTimeout(() => {
                         compileStatus.hide();
                     }, 5000);
@@ -223,7 +223,7 @@ async function OnlyCompile(askUser) {
                     showCommand(`程序 ${filePath} 编译成功，编译命令：${compileCommand}`);
                     compileStatus.text = '$(check) 编译成功';
                     compileStatus.show();
-                    
+
                     setTimeout(() => {
                         compileStatus.hide();
                     }, 5000);
@@ -232,7 +232,7 @@ async function OnlyCompile(askUser) {
             });
         });
     }
-    
+
     return 1;
 }
 
@@ -262,7 +262,7 @@ function runProgram(programPath, terminalType) {
     let cdCommand, runCommand;
     if (process.platform === 'win32') {
         cdCommand = `cd /d "${programDir}"`;
-        
+
         // 如果同时启用了文件读写和反文件读写
         if (useFileRedirect && useUnFileRedirect) {
             if (UseConsoleInfo) {
@@ -303,7 +303,7 @@ function runProgram(programPath, terminalType) {
         }
     } else {
         cdCommand = `cd "${programDir}"`;
-        
+
         if (useFileRedirect) {
             // Linux/Mac 使用标准重定向
             runCommand = `./${executableName} < "${inputFile}" > "${outputFile}"`;
@@ -433,7 +433,7 @@ class CppCompilerSidebarProvider {
 
         // 初始检查状态
         this.updateButtonStates();
-        
+
         const compileOptions = getConfig('compileOptions') || '';
         const useStatic = getConfig('useStaticLinking') || false;
         const useConsoleInfo = getConfig('useConsoleInfo') || false;
@@ -479,41 +479,41 @@ class CppCompilerSidebarProvider {
                     this.updateWebviewContent();
                     break;
                 case 'updateInputFile':
-                    if(data.value !== '') {
+                    if (data.value !== '') {
                         showCommand(`用户在侧边栏更新了输入文件，输入文件现在为：${data.value}`);
                         const inputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await inputConfig.update('inputFile', data.value, vscode.ConfigurationTarget.Global);
-                    }else{
+                    } else {
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
                     this.updateWebviewContent();
                     break;
                 case 'updateOutputFile':
-                    if(data.value !== '') {
+                    if (data.value !== '') {
                         showCommand(`用户在侧边栏更新了输出文件，输出文件现在为：${data.value}`);
                         const outputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await outputConfig.update('outputFile', data.value, vscode.ConfigurationTarget.Global);
-                    }else{
+                    } else {
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
                     this.updateWebviewContent();
                     break;
                 case 'updateUnFileInputFile':
-                    if(data.value !== '') {
+                    if (data.value !== '') {
                         showCommand(`用户在侧边栏更新了反文件输入文件，反文件输入文件现在为：${data.value}`);
                         const unFileInputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await unFileInputConfig.update('unFileInputFile', data.value, vscode.ConfigurationTarget.Global);
-                    }else{
+                    } else {
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
                     this.updateWebviewContent();
                     break;
                 case 'updateUnFileOutputFile':
-                    if(data.value !== '') {
+                    if (data.value !== '') {
                         showCommand(`用户在侧边栏更新了反文件输出文件，反文件输出文件现在为：${data.value}`);
                         const unFileOutputConfig = vscode.workspace.getConfiguration('cpp-compiler');
                         await unFileOutputConfig.update('unFileOutputFile', data.value, vscode.ConfigurationTarget.Global);
-                    }else{
+                    } else {
                         vscode.window.showErrorMessage('文件路径不能为空！');
                     }
                     this.updateWebviewContent();
@@ -579,7 +579,7 @@ class CppCompilerSidebarProvider {
         const unFileOutputFile = getConfig('unFileOutputFile') || 'output.txt';
         const useFileRedirect = getConfig('useFileRedirect') || false;
         const useUnFileRedirect = getConfig('useUnFileRedirect') || false;
-    
+
         return `<!DOCTYPE html>
         <html lang="zh-CN">
         <head>
@@ -587,43 +587,54 @@ class CppCompilerSidebarProvider {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>C++编译控制</title>
             <style>
+                /* 全局样式：基础重置 + 主题适配 */
                 * {
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
+                    scrollbar-width: none; /* Firefox */
+                    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
                 }
-                
-                .container {
-                    padding: 12px;
+        
+                body {
                     background-color: var(--vscode-sideBar-background);
-                    min-height: 100%;
+                    color: var(--vscode-foreground);
+                    font-family: var(--vscode-font-family);
+                    font-size: 13px;
+                    line-height: 1.5;
+                }
+        
+                .container {
+                    padding: 16px;
+                    min-height: 100vh;
                     display: flex;
                     flex-direction: column;
-                    gap: 12px;
-                    /* 固定容器宽度（匹配VS Code侧边栏默认宽度），避免拉伸 */
+                    gap: 16px;
                     width: 100%;
+                    overflow: hidden;
                 }
-            
-                /* 区块容器样式 */
+        
+                /* 可折叠区块：卡片化设计 + 层次阴影 */
                 .collapsible-section {
-                    border-radius: 6px;
+                    border-radius: 10px;
                     background-color: var(--vscode-sideBarSectionHeader-background);
                     border: 1px solid var(--vscode-panel-border);
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                    transition: box-shadow 0.2s ease;
-                    /* 关键：强制占满父容器宽度，且宽度不随内容变化 */
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     width: 100%;
-                    min-width: 100%;
+                    overflow: hidden;
                 }
-            
+        
                 .collapsible-section:hover {
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+                    border-color: var(--vscode-focusBorder);
+                    transform: translateY(-1px);
                 }
-            
-                /* 标题栏样式 */
+        
+                /* 标题栏：增强交互反馈 */
                 .section-header {
                     font-weight: 600;
-                    padding: 10px 14px;
+                    padding: 12px 16px;
                     color: var(--vscode-titleBar-activeForeground);
                     font-size: 14px;
                     display: flex;
@@ -631,17 +642,32 @@ class CppCompilerSidebarProvider {
                     justify-content: space-between;
                     cursor: pointer;
                     user-select: none;
+                    background-color: transparent;
+                    position: relative;
                 }
-                
-                .section-header:hover {
-                    background-color: rgba(255, 255, 255, 0.05);
+        
+                .section-header::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 1px;
+                    background-color: var(--vscode-panel-border);
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
                 }
-                
+        
+                .section-header:hover::after {
+                    opacity: 1;
+                }
+        
                 .section-title {
                     display: flex;
                     align-items: center;
                 }
-                
+        
+                /* 恢复原始竖线标识 */
                 .section-title::before {
                     content: '';
                     display: inline-block;
@@ -651,182 +677,236 @@ class CppCompilerSidebarProvider {
                     margin-right: 8px;
                     border-radius: 2px;
                 }
-                
+        
+                /* 箭头图标：优化动画曲线 */
                 .collapse-icon {
-                    transition: transform 0.2s ease;
-                    font-size: 16px;
+                    width: 16px;
+                    height: 16px;
+                    color: var(--vscode-descriptionForeground);
+                    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+                    flex-shrink: 0;
                 }
-                
+        
                 .rotate {
-                    transform: rotate(90deg);
+                    transform: rotate(180deg);
                 }
-                
-                /* 内容区域样式 */
+        
+                /* 内容区域：丝滑过渡 */
                 .section-content {
-                    /* 左右内边距固定14px，仅上下内边距随折叠状态变化 */
-                    padding: 0 14px;
+                    padding: 0 16px;
                     max-height: 0;
                     overflow: hidden;
-                    /* 仅过渡上下内边距和最大高度，避免宽度相关动画 */
-                    transition: max-height 0.2s ease-in-out, padding-top 0.2s ease-in-out, padding-bottom 0.2s ease-in-out;
+                    transition: 
+                        max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
+                        padding 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
+                        opacity 0.3s ease;
+                    opacity: 0;
                 }
-                
+        
                 .section-content.expanded {
-                    /* 展开时仅增加上下内边距，左右内边距保持14px不变 */
-                    padding: 14px 14px;
+                    padding: 18px 16px;
                     max-height: 800px;
+                    opacity: 1;
                 }
-            
-                /* 输入框样式 */
+        
+                /* 输入框：现代扁平风格 */
                 input[type="text"] {
                     width: 100%;
-                    padding: 8px 12px;
+                    padding: 9px 14px;
                     border: 1px solid var(--vscode-input-border);
                     background-color: var(--vscode-input-background);
                     color: var(--vscode-input-foreground);
                     font-size: 13px;
-                    box-sizing: border-box;
-                    height: 32px;
-                    border-radius: 4px;
+                    height: 36px;
+                    border-radius: 8px;
                     transition: all 0.2s ease;
                     font-family: var(--vscode-font-family);
+                    outline: none;
+                    position: relative;
+                    z-index: 1;
                 }
-            
+        
                 input[type="text"]:focus {
                     border-color: var(--vscode-focusBorder);
-                    outline: none;
-                    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.15);
+                    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15);
                 }
-                
+        
                 input[type="text"]::placeholder {
                     color: var(--vscode-input-placeholderForeground);
+                    opacity: 0.8;
                 }
-            
+        
+                /* 按钮组：网格布局 */
                 .button-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    margin-top: 12px;
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 10px;
+                    margin-top: 4px;
                 }
-                
+        
                 button {
-                    padding: 10px;
+                    padding: 11px 16px;
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
-                    border-radius: 4px;
+                    border-radius: 8px;
                     cursor: pointer;
                     font-size: 13px;
                     font-weight: 500;
-                    /* 添加按钮过渡动画 */
-                    transition: all 0.2s ease-in-out;
+                    transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    /* 基础阴影 */
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
                 }
-                    
+        
                 button:disabled {
                     background-color: var(--vscode-button-background);
-                    opacity: 0.6;
+                    opacity: 0.5;
                     cursor: not-allowed;
                     box-shadow: none;
                     transform: none;
                 }
-                
+        
                 button:hover:not(:disabled) {
                     background-color: var(--vscode-button-hoverBackground);
-                    /* 悬停时增强阴影 */
-                    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-                    /* 轻微上浮效果 */
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
                     transform: translateY(-1px);
                 }
-                
+        
                 button:active:not(:disabled) {
-                    /* 点击时阴影收缩 */
-                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-                    /* 点击时下沉效果 */
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
                     transform: translateY(0);
                 }
-                
+        
+                /* 复选框：自定义样式 */
                 .checkbox-container {
                     display: flex;
                     align-items: center;
-                    margin: 10px 0;
+                    margin: 12px 0 0;
                     font-size: 13px;
-                    padding: 6px 0;
-                }
-                
-                input[type="checkbox"] {
-                    margin-right: 8px;
-                    width: 16px;
-                    height: 16px;
-                    accent-color: var(--vscode-button-background);
+                    padding: 4px 8px;
+                    transition: background-color 0.2s ease;
+                    border-radius: 6px;
                     cursor: pointer;
                 }
-                
+        
+                .checkbox-container:hover {
+                    background-color: rgba(255, 255, 255, 0.03);
+                }
+        
+                input[type="checkbox"] {
+                    margin-right: 8px;
+                    width: 18px;
+                    height: 18px;
+                    accent-color: var(--vscode-button-background);
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.2s ease;
+                }
+        
+                /* 保存按钮容器 */
                 .save-options-container {
-                    margin-top: 10px;
+                    margin-top: 12px;
                     display: flex;
                     justify-content: center;
                 }
-                
+        
                 #saveOptions {
                     padding: 8px 20px;
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                 }
-                
+        
+                /* 文件输入容器 */
                 .file-input-container {
-                    margin-bottom: 10px;
+                    margin-bottom: 14px;
                     position: relative;
                 }
-                
+        
                 .file-input-label {
                     display: block;
                     margin-bottom: 6px;
-                    font-size: 13px;
+                    font-size: 12px;
                     color: var(--vscode-descriptionForeground);
                     font-weight: 500;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
                 }
-                
+        
+                /* 子区块：卡片化增强 */
                 .subsection {
-                    margin-bottom: 12px;
-                    padding: 12px;
-                    border-radius: 5px;
+                    margin-bottom: 16px;
+                    padding: 16px;
+                    border-radius: 8px;
                     background-color: var(--vscode-sideBar-background);
                     border: 1px solid var(--vscode-panel-border);
-                    /* 继承盒模型，宽度不超出父容器 */
                     width: 100%;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
                 }
-                
+        
+                .subsection:last-child {
+                    margin-bottom: 0;
+                }
+        
+                .subsection:hover {
+                    border-color: var(--vscode-focusBorder);
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
+                }
+        
                 .subsection-title {
                     font-weight: 600;
-                    margin-bottom: 8px;
+                    margin-bottom: 12px;
                     color: var(--vscode-titleBar-activeForeground);
                     font-size: 13px;
-                    padding-bottom: 5px;
+                    padding-bottom: 6px;
                     border-bottom: 1px solid var(--vscode-panel-border);
                 }
-                
+        
+                /* 保存状态：动效增强 */
                 .save-status {
                     position: absolute;
-                    right: 0;
-                    top: 0;
+                    right: 14px;
+                    top: 50%;
+                    transform: translateY(-50%);
                     font-size: 12px;
                     color: var(--vscode-testing-iconPassed);
                     opacity: 0;
-                    transition: opacity 0.3s ease;
+                    transition: all 0.3s ease;
                     pointer-events: none;
+                    background-color: var(--vscode-input-background);
+                    padding: 0 6px;
+                    border-radius: 4px;
+                    z-index: 2;
                 }
-                
+        
                 .save-status.visible {
-                    opacity: 1;
+                    opacity: 0.9;
+                    background-color: var(--vscode-sideBar-background);
+                    animation: pulse 0.5s ease;
                 }
-                
+        
+                @keyframes pulse {
+                    0% { transform: translateY(-50%) scale(0.9); }
+                    50% { transform: translateY(-50%) scale(1.05); }
+                    100% { transform: translateY(-50%) scale(1); }
+                }
+        
+                /* 禁用区域 */
                 .disabled-section {
-                    opacity: 0.6;
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+        
+                /* 主题适配 */
+                @media (prefers-color-scheme: light) {
+                    .collapsible-section {
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+                    }
+                    .collapsible-section:hover {
+                        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.06);
+                    }
                 }
             </style>
         </head>
@@ -837,9 +917,11 @@ class CppCompilerSidebarProvider {
                 <div class="collapsible-section">
                     <div class="section-header" data-section="compileOptions">
                         <div class="section-title">编译选项</div>
-                        <span class="collapse-icon">▶</span>
+                        <svg class="collapse-icon" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
+                            <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z"/>
+                        </svg>
                     </div>
-                    <div class="section-content expanded" id="compileOptionsContent">
+                    <div class="section-content" id="compileOptionsContent">
                         <input type="text" id="compileOptions" value="${compileOptions.replace(/"/g, '&quot;')}" placeholder="输入编译选项，如：-std=c++17 -Wall">
                         <div class="save-options-container">
                             <button id="saveOptions">保存编译选项</button>
@@ -855,7 +937,9 @@ class CppCompilerSidebarProvider {
                 <div class="collapsible-section">
                     <div class="section-header" data-section="runControl">
                         <div class="section-title">运行控制</div>
-                        <span class="collapse-icon">▶</span>
+                        <svg class="collapse-icon rotate" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
+                            <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z"/>
+                        </svg>
                     </div>
                     <div class="section-content expanded" id="runControlContent">
                         <div class="button-group">
@@ -881,9 +965,11 @@ class CppCompilerSidebarProvider {
                 <div class="collapsible-section">
                     <div class="section-header" data-section="fileOperations">
                         <div class="section-title">文件读写操作</div>
-                        <span class="collapse-icon">▶</span>
+                        <svg class="collapse-icon" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
+                            <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z"/>
+                        </svg>
                     </div>
-                    <div class="section-content expanded" id="fileOperationsContent">
+                    <div class="section-content" id="fileOperationsContent">
                         <!-- 文件读写子区块 -->
                         <div class="subsection">
                             <div class="subsection-title">文件读写</div>
@@ -931,19 +1017,17 @@ class CppCompilerSidebarProvider {
                     </div>
                 </div>
             </div>
-    
+        
             <script>
                 const vscode = acquireVsCodeApi();
                 
                 // 初始化可折叠功能
                 document.querySelectorAll('.section-header').forEach(header => {
                     header.addEventListener('click', () => {
-                        // 获取对应的内容区域和图标
                         const sectionId = header.getAttribute('data-section');
                         const content = document.getElementById(sectionId + 'Content');
                         const icon = header.querySelector('.collapse-icon');
                         
-                        // 切换展开/折叠状态
                         content.classList.toggle('expanded');
                         icon.classList.toggle('rotate');
                     });
@@ -983,7 +1067,7 @@ class CppCompilerSidebarProvider {
                     });
                 });
                 
-                // 文件读写输入框失去焦点时保存
+                // 文件读写输入框保存
                 document.getElementById('inputFile').addEventListener('blur', (e) => {
                     const inputFile = e.target.value.trim();
                     if (inputFile) {
@@ -995,7 +1079,7 @@ class CppCompilerSidebarProvider {
                     }
                 });
                 
-                // 文件读写输出框失去焦点时保存
+                // 文件读写输出框保存
                 document.getElementById('outputFile').addEventListener('blur', (e) => {
                     const outputFile = e.target.value.trim();
                     if (outputFile) {
@@ -1007,7 +1091,7 @@ class CppCompilerSidebarProvider {
                     }
                 });
                 
-                // 反文件读写输入框失去焦点时保存
+                // 反文件读写输入框保存
                 document.getElementById('unFileInputFile').addEventListener('blur', (e) => {
                     const unFileInputFile = e.target.value.trim();
                     if (unFileInputFile) {
@@ -1019,7 +1103,7 @@ class CppCompilerSidebarProvider {
                     }
                 });
                 
-                // 反文件读写输出框失去焦点时保存
+                // 反文件读写输出框保存
                 document.getElementById('unFileOutputFile').addEventListener('blur', (e) => {
                     const unFileOutputFile = e.target.value.trim();
                     if (unFileOutputFile) {
@@ -1060,7 +1144,7 @@ class CppCompilerSidebarProvider {
                     vscode.postMessage({ type: 'onlyCompile' });
                 });
                 
-                // 监听来自扩展的消息
+                // 监听扩展消息
                 window.addEventListener('message', event => {
                     const data = event.data;
                     if (data.type === 'updateButtonStates') {
