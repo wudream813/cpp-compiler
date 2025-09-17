@@ -1,7 +1,7 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "2.3.0",
+	"version": "2.3.1",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {
@@ -128,8 +128,8 @@
 			"properties": {
 				"cpp-compiler.compileOptions": {
 					"type": "string",
-					"default": "-std=c++17 -Wall -O2",
-					"description": "用于编译C++文件的g++选项，例如：-std=c++17 -Wall -O2"
+					"default": "-std=c++14 -Wall -O2 -Wl,--stack=400000000",
+					"description": "用于编译C++文件的g++选项"
 				},
 				"cpp-compiler.useStaticLinking": {
 					"type": "boolean",
