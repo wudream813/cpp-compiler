@@ -16,6 +16,27 @@ const compileOutput = vscode.window.createOutputChannel('cpp-compiler:g++ 报错
 const commandOutput = vscode.window.createOutputChannel('cpp-compiler');
 let fileConfigs = {};
 
+function openInTerminal(targetPath) {
+    const platform = process.platform;
+
+    if (platform === 'win32') {
+        // Windows: cmd
+        exec(`start cmd.exe /K "cd /d ${targetPath}"`);
+    } else if (platform === 'darwin') {
+        // macOS: osascript
+        const appleScript = `
+            tell application "Terminal"
+                activate
+                do script "cd '${targetPath.replace(/'/g, "'\\''")}'"
+            end tell
+        `;
+        exec(`osascript -e '${appleScript}'`);
+    } else {
+        // Linux: gnome-terminal
+        exec(`gnome-terminal --working-directory=${targetPath}`);
+    }
+}
+
 function makeTerminal() {
     if (process.platform === 'win32') {
         return vscode.window.createTerminal({ name: "cpp-compiler:运行", shellPath: "C:\\Windows\\System32\\cmd.exe" });
@@ -1477,6 +1498,19 @@ function activate(context) {
         'cpp-compiler.cppCompile',
         () => OnlyCompile(1)
     );
+    
+    let OpenTerminalDisposable = vscode.commands.registerCommand(
+        'extension.openInExternalTerminal',
+        (uri) => {
+            if (!uri || !uri.fsPath) {
+                vscode.window.showErrorMessage('未选择文件或文件夹');
+                return;
+            }
+
+            const targetPath = uri.fsPath;
+            openInTerminal(targetPath);
+        }
+    );
 
     // 创建状态栏按钮
     statusBarInternal = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -1508,7 +1542,8 @@ function activate(context) {
         statusBarInternal,
         statusBarExternal,
         statusBarCompile,
-        compileStatus
+        compileStatus,
+        openInTerminal
     );
 }
 

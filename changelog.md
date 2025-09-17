@@ -1,3 +1,5 @@
+# cpp-compiler v2.6.0
+> 新增代码片段，增强资源管理器
 # cpp-compiler v2.5.0
 > UI 改为渐变色，更美观
 # cpp-compiler v2.4.1

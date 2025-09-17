@@ -1,7 +1,7 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "2.5.0",
+	"version": "2.6.0",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {
@@ -14,13 +14,20 @@
 		"Other",
 		"C++",
 		"Better Compiler",
-		"OIer"
+		"OIer",
+		"Snippets"
 	],
 	"activationEvents": [
 		"onLanguage:cpp"
 	],
 	"main": "./extension.js",
 	"contributes": {
+		"snippets": [
+			{
+				"language": "cpp",
+				"path": "./snippets.json"
+			}
+		],
 		"viewsContainers": {
 			"activitybar": [
 				{
@@ -61,6 +68,10 @@
 				"command": "cpp-compiler.cppCompile",
 				"title": "仅编译",
 				"icon": "$(gear)"
+			},
+			{
+				"command": "extension.openInExternalTerminal",
+				"title": "在外部终端打开"
 			}
 		],
 		"menus": {
@@ -100,6 +111,13 @@
 				{
 					"command": "cpp-compiler.cppCompile",
 					"group": "cpp-compile@1"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "extension.openInExternalTerminal",
+					"group": "navigation",
+					"when": "explorerResourceIsFolder"
 				}
 			]
 		},
