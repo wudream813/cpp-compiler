@@ -148,7 +148,10 @@ function getFileConfig(filePath, key) {
             unFileInputFile: `${baseName}.in`,
             unFileOutputFile: `${baseName}.out`,
             useFileRedirect: false,
-            useUnFileRedirect: false
+            useUnFileRedirect: false,
+            card1open: false,
+            card2open: true,
+            card3open: false
         };
     }
     return fileConfigs[filePath][key];
@@ -165,7 +168,10 @@ function setFileConfig(filePath, key, value) {
             unFileInputFile: `${baseName}.in`,
             unFileOutputFile: `${baseName}.out`,
             useFileRedirect: false,
-            useUnFileRedirect: false
+            useUnFileRedirect: false,
+            card1open: false,
+            card2open: true,
+            card3open: false
         };
     }
     fileConfigs[filePath][key] = value;
@@ -311,17 +317,17 @@ function runProgram(programPath, terminalType) {
         if (useFileRedirect && useUnFileRedirect) {
             if (UseConsoleInfo) {
                 // 使用 ConsoleInfoChangeFileIO.exe
-                const ConsoleInfoChangeFileIOPath = path.join(__dirname, 'ConsoleInfoChangeFileIO.exe');
+                const ConsoleInfoChangeFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoChangeFileIO.exe');
                 runCommand = `cmd /c "${ConsoleInfoChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}""`;
             } else {
                 // 使用 ChangeFileIO.exe
-                const ChangeFileIOPath = path.join(__dirname, 'ChangeFileIO.exe');
+                const ChangeFileIOPath = path.join(__dirname, 'tools', 'ChangeFileIO.exe');
                 runCommand = `cmd /c "${ChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}""`;
             }
         } else if (useFileRedirect) {
             if (UseConsoleInfo) {
                 // 使用 ConsoleInfoFileIO.exe
-                const ConsoleInfoFileIOPath = path.join(__dirname, 'ConsoleInfoFileIO.exe');
+                const ConsoleInfoFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoFileIO.exe');
                 runCommand = `cmd /c "${ConsoleInfoFileIOPath} "${executableName}.exe" "${inputFile}" "${outputFile}""`;
             } else {
                 // 使用标准重定向
@@ -330,16 +336,16 @@ function runProgram(programPath, terminalType) {
         } else if (useUnFileRedirect) {
             if (UseConsoleInfo) {
                 // 使用 ConsoleInfoUnFileIO.exe
-                const ConsoleInfoUnFileIOPath = path.join(__dirname, 'ConsoleInfoUnFileIO.exe');
+                const ConsoleInfoUnFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoUnFileIO.exe');
                 runCommand = `cmd /c "${ConsoleInfoUnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}""`;
             } else {
                 // 使用 UnFileIO.exe
-                const UnFileIOPath = path.join(__dirname, 'UnFileIO.exe');
+                const UnFileIOPath = path.join(__dirname, 'tools', 'UnFileIO.exe');
                 runCommand = `cmd /c "${UnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}""`;
             }
         } else {
             if (UseConsoleInfo) {
-                const ConsoleInfoPath = path.join(__dirname, 'ConsoleInfo.exe');
+                const ConsoleInfoPath = path.join(__dirname, 'tools', 'ConsoleInfo.exe');
                 runCommand = `cmd /c "${ConsoleInfoPath} "${executableName}.exe""`;
             } else {
                 runCommand = `.\\"${executableName}.exe"`;
@@ -371,17 +377,17 @@ function runProgram(programPath, terminalType) {
             if (useFileRedirect && useUnFileRedirect) {
                 if (UseConsoleInfo) {
                     // 使用 ConsoleInfoChangeFileIO.exe
-                    const ConsoleInfoChangeFileIOPath = path.join(__dirname, 'ConsoleInfoChangeFileIO.exe');
+                    const ConsoleInfoChangeFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoChangeFileIO.exe');
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}" & echo. & pause"`;
                 } else {
                     // 使用 ChangeFileIO.exe
-                    const ChangeFileIOPath = path.join(__dirname, 'ChangeFileIO.exe');
+                    const ChangeFileIOPath = path.join(__dirname, 'tools', 'ChangeFileIO.exe');
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}" & echo. & pause"`;
                 }
             } else if (useFileRedirect) {
                 if (UseConsoleInfo) {
                     // 使用 ConsoleInfoFileIO.exe
-                    const ConsoleInfoFileIOPath = path.join(__dirname, 'ConsoleInfoFileIO.exe');
+                    const ConsoleInfoFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoFileIO.exe');
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoFileIOPath} "${executableName}.exe" "${inputFile}" "${outputFile}" & echo. & pause"`;
                 } else {
                     // 使用标准重定向
@@ -390,16 +396,16 @@ function runProgram(programPath, terminalType) {
             } else if (useUnFileRedirect) {
                 if (UseConsoleInfo) {
                     // 使用 ConsoleInfoUnFileIO.exe
-                    const ConsoleInfoUnFileIOPath = path.join(__dirname, 'ConsoleInfoUnFileIO.exe');
+                    const ConsoleInfoUnFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoUnFileIO.exe');
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoUnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" & echo. & pause"`;
                 } else {
                     // 使用 UnFileIO.exe
-                    const UnFileIOPath = path.join(__dirname, 'UnFileIO.exe');
+                    const UnFileIOPath = path.join(__dirname, 'tools', 'UnFileIO.exe');
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${UnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" & echo. & pause"`;
                 }
             } else {
                 if (UseConsoleInfo) {
-                    const ConsoleInfoPath = path.join(__dirname, 'ConsoleInfo.exe');
+                    const ConsoleInfoPath = path.join(__dirname, 'tools', 'ConsoleInfo.exe');
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoPath} "${executableName}.exe" & echo. & pause"`;
                 } else {
                     terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & .\\"${executableName}.exe" & echo. & pause"`;
@@ -486,131 +492,186 @@ class CppCompilerSidebarProvider {
 
         // 监听来自webview的消息
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            
+            const editor = vscode.window.activeTextEditor;
+            const isCppFile = editor && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file';
+            const filePath = isCppFile ? editor.document.uri.fsPath : null;
+
             switch (data.type) {
-                case 'runInternal':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+                case 'runInternal': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
                     const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
-                    showCommand(`用户在侧边栏选择了在内置终端编译运行，编译选项：${compileOptions}，${useStatic ? `启用` : `禁用`}静态编译，${useConsoleInfo ? `使用` : `禁用`} ConsoleInfo.exe 运行程序，${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}${useFileRedirect && useUnFileRedirect ? '，' : ''}${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}${!useFileRedirect && !useUnFileRedirect ? `禁用文件重定向` : ''}`);
+
+                    const message = `
+        用户在侧边栏选择了在内置终端编译运行
+        编译选项：${compileOptions}
+        ${useStatic ? '启用' : '禁用'}静态编译
+        ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
+        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}
+        ${useFileRedirect && useUnFileRedirect ? '，' : ''}
+        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}
+        ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
+                    `.trim();
+
+                    showCommand(message);
                     compileAndRun('internal');
                     break;
                 }
-                case 'runExternal':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'runExternal': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
                     const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
-                    showCommand(`用户在侧边栏选择了在外部终端编译运行，编译选项：${compileOptions}，${useStatic ? `启用` : `禁用`}静态编译，${useConsoleInfo ? `使用` : `禁用`} ConsoleInfo.exe 运行程序，${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}${useFileRedirect && useUnFileRedirect ? '，' : ''}${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}${!useFileRedirect && !useUnFileRedirect ? `禁用文件重定向` : ''}`);
+
+                    const message = `
+        用户在侧边栏选择了在外部终端编译运行
+        编译选项：${compileOptions}
+        ${useStatic ? '启用' : '禁用'}静态编译
+        ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
+        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}
+        ${useFileRedirect && useUnFileRedirect ? '，' : ''}
+        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}
+        ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
+                    `.trim();
+
+                    showCommand(message);
                     compileAndRun('external');
                     break;
                 }
-                case 'onlyCompile':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'onlyCompile': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
-                    showCommand(`用户在侧边栏选择了仅编译，编译选项：${compileOptions}，${useStatic ? `启用` : `禁用`}静态编译，${useConsoleInfo ? `使用` : `禁用`} ConsoleInfo.exe 运行程序，${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}${useFileRedirect && useUnFileRedirect ? '，' : ''}${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}${!useFileRedirect && !useUnFileRedirect ? `禁用文件重定向` : ''}`);
+
+                    const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
+                    const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+
+                    const message = `
+        用户在侧边栏选择了仅编译
+        编译选项：${compileOptions}
+        ${useStatic ? '启用' : '禁用'}静态编译
+        ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
+        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}
+        ${useFileRedirect && useUnFileRedirect ? '，' : ''}
+        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}
+        ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
+                    `.trim();
+
+                    showCommand(message);
                     OnlyCompile(1);
                     break;
                 }
-                case 'updateCompileOptions':{
-                    showCommand(`用户在侧边栏更新了编译选项，编译选项现在为：${data.value}`);
+
+                case 'updateCompileOptions': {
+                    showCommand(`用户在侧边栏更新了编译选项，现在为：${data.value}`);
                     const config = vscode.workspace.getConfiguration('cpp-compiler');
                     await config.update('compileOptions', data.value, vscode.ConfigurationTarget.Global);
-                    vscode.window.showInformationMessage('C++编译选项更新成功！');
+                    vscode.window.showInformationMessage('C++ 编译选项更新成功！');
                     this.updateWebviewContent();
                     break;
                 }
-                case 'toggleStaticLinking':{
-                    showCommand(`用户在侧边栏更新了静态编译选项，静态编译选项现在为：${data.value}`);
+
+                case 'toggleStaticLinking': {
+                    showCommand(`用户在侧边栏更新了静态编译选项，现在为：${data.value}`);
                     const staticConfig = vscode.workspace.getConfiguration('cpp-compiler');
                     await staticConfig.update('useStaticLinking', data.value, vscode.ConfigurationTarget.Global);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'toggleuseConsoleInfo':{
-                    showCommand(`用户在侧边栏更新了 ConsoleInfo.exe 运行选项，ConsoleInfo.exe 运行选项选项现在为：${data.value}`);
+
+                case 'toggleuseConsoleInfo': {
+                    showCommand(`用户在侧边栏更新了 ConsoleInfo.exe 运行选项，现在为：${data.value}`);
                     const ConsoleInfoConfig = vscode.workspace.getConfiguration('cpp-compiler');
                     await ConsoleInfoConfig.update('useConsoleInfo', data.value, vscode.ConfigurationTarget.Global);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'toggleFileRedirect':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'toggleFileRedirect': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的文件重定向选项，文件重定向选项现在为：${data.value}`);
+                    showCommand(`用户在侧边栏更新了 ${filePath} 的文件重定向，现在为：${data.value}`);
                     setFileConfig(filePath, 'useFileRedirect', data.value);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'toggleUnFileRedirect':{
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的反文件重定向选项，反文件重定向选项现在为：${data.value}`);
+
+                case 'toggleUnFileRedirect': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
+                        return;
+                    }
+                    showCommand(`用户在侧边栏更新了 ${filePath} 的反文件重定向，现在为：${data.value}`);
                     setFileConfig(filePath, 'useUnFileRedirect', data.value);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'updateInputFile':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'updateInputFile': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的文件重定向输入路径，文件重定向输入路径现在为：${data.value}`);
+                    showCommand(`用户在侧边栏更新了 ${filePath} 的输入文件路径，现在为：${data.value}`);
                     setFileConfig(filePath, 'inputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'updateOutputFile':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'updateOutputFile': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的文件重定向输出路径，文件重定向输出路径现在为：${data.value}`);
+                    showCommand(`用户在侧边栏更新了 ${filePath} 的输出文件路径，现在为：${data.value}`);
                     setFileConfig(filePath, 'outputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'updateUnFileInputFile':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'updateUnFileInputFile': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的反文件重定向输入路径，反文件重定向输入路径现在为：${data.value}`);
+                    showCommand(`用户在侧边栏更新了 ${filePath} 的反输入文件路径，现在为：${data.value}`);
                     setFileConfig(filePath, 'unFileInputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
-                case 'updateUnFileOutputFile':{
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor || editor.document.languageId !== 'cpp' || editor.document.uri.scheme !== 'file') {
-                        vscode.window.showErrorMessage('cpp-compiler:没有活动的本地C++文件！');
+
+                case 'updateUnFileOutputFile': {
+                    if (!isCppFile) {
+                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
                         return;
                     }
-                    const filePath = editor.document.uri.fsPath;
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的反文件重定向输出路径，反文件重定向输出路径现在为：${data.value}`);
+                    showCommand(`用户在侧边栏更新了 ${filePath} 的反输出文件路径，现在为：${data.value}`);
                     setFileConfig(filePath, 'unFileOutputFile', data.value);
                     this.updateWebviewContent();
+                    break;
+                }
+
+                case 'updateCardState': {
+                    if (!isCppFile) return;
+                    let key = '';
+                    if (data.section === 'compileOptions') key = 'card1open';
+                    else if (data.section === 'runControl') key = 'card2open';
+                    else if (data.section === 'fileOperations') key = 'card3open';
+
+                    if (key) {
+                        setFileConfig(filePath, key, data.value);
+                        showCommand(`用户在侧边栏更新了 ${filePath} 的 ${key} 状态，现在为：${data.value}`);
+                    }
                     break;
                 }
             }
@@ -640,6 +701,9 @@ class CppCompilerSidebarProvider {
         let useFileRedirect = false;
         let useUnFileRedirect = false;
         let isCppFile = false;
+        let card1open = false;
+        let card2open = true;
+        let card3open = false;
     
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             const filePath = editor.document.uri.fsPath;
@@ -649,6 +713,9 @@ class CppCompilerSidebarProvider {
             unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile');
             useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
             useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+            card1open = getFileConfig(filePath, 'card1open');
+            card2open = getFileConfig(filePath, 'card2open');
+            card3open = getFileConfig(filePath, 'card3open');
             isCppFile = true;
         }
     
@@ -663,6 +730,9 @@ class CppCompilerSidebarProvider {
             unFileOutputFile: unFileOutputFile,
             useFileRedirect: useFileRedirect,
             useUnFileRedirect: useUnFileRedirect,
+            card1open: card1open,
+            card2open: card2open,
+            card3open: card3open,
             isCppFile: isCppFile
         });
     }
@@ -1056,8 +1126,7 @@ class CppCompilerSidebarProvider {
                         <div class="section-title">运行控制</div>
                         <svg class="collapse-icon rotate" aria-hidden="true" focusable="false"
                             xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
-                            <path
-                                d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
+                            <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
                         </svg>
                     </div>
                     <div class="section-content expanded" id="runControlContent">
@@ -1152,11 +1221,20 @@ class CppCompilerSidebarProvider {
                         const sectionId = header.getAttribute('data-section');
                         const content = document.getElementById(sectionId + 'Content');
                         const icon = header.querySelector('.collapse-icon');
-        
-                        content.classList.toggle('expanded');
+                
+                        // 切换并获取切换后的状态（true 表示现在是展开状态）
+                        const isExpanded = content.classList.toggle('expanded');
                         icon.classList.toggle('rotate');
+                
+                        // 发送给扩展
+                        vscode.postMessage({
+                            type: 'updateCardState',
+                            section: sectionId,
+                            value: isExpanded
+                        });
                     });
                 });
+                
         
                 // 显示保存状态
                 function showSaveStatus(elementId) {
@@ -1309,14 +1387,32 @@ class CppCompilerSidebarProvider {
                         document.getElementById('useConsoleInfo').checked = data.useConsoleInfo;
                         document.getElementById('useFileRedirect').checked = data.useFileRedirect;
                         document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
-        
-                        // 只有在C++文件时才更新文件输入框的值
+
                         if (data.isCppFile) {
                             document.getElementById('inputFile').value = data.inputFile;
                             document.getElementById('outputFile').value = data.outputFile;
                             document.getElementById('unFileInputFile').value = data.unFileInputFile;
                             document.getElementById('unFileOutputFile').value = data.unFileOutputFile;
                         }
+
+                        // 恢复卡片展开/收起状态
+                        const cards = [
+                            { id: 'compileOptions', open: data.card1open },
+                            { id: 'runControl', open: data.card2open },
+                            { id: 'fileOperations', open: data.card3open }
+                        ];
+                        
+                        cards.forEach(card => {
+                            const content = document.getElementById(card.id + 'Content');
+                            const icon = document.querySelector('.section-header[data-section="' + card.id + '"] .collapse-icon');
+                            if (card.open) {
+                                content.classList.add('expanded');
+                                icon.classList.add('rotate');
+                            } else {
+                                content.classList.remove('expanded');
+                                icon.classList.remove('rotate');
+                            }
+                        });
                     }
                 });
             </script>

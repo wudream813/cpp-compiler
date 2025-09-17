@@ -1,14 +1,14 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "2.3.1",
+	"version": "2.4.0",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {
 		"vscode": "^1.74.0"
 	},
 	"license": "MIT",
-	"icon": "icon.png",
+	"icon": "icon/icon.png",
 	"categories": [
 		"Programming Languages",
 		"Other",
@@ -26,7 +26,7 @@
 				{
 					"id": "cpp-compiler-sidebar",
 					"title": "C++ 编译器",
-					"icon": "sidebar-icon.svg"
+					"icon": "icon/sidebar-icon.svg"
 				}
 			]
 		},
@@ -36,7 +36,7 @@
 					"type": "webview",
 					"id": "cppCompilerSidebar",
 					"name": "编译控制",
-					"icon": "sidebar-icon.svg",
+					"icon": "icon/sidebar-icon.svg",
 					"contextualTitle": "C++编译控制"
 				}
 			]
