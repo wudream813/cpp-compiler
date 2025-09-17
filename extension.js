@@ -1124,12 +1124,12 @@ class CppCompilerSidebarProvider {
                 <div class="collapsible-section">
                     <div class="section-header" data-section="runControl">
                         <div class="section-title">运行控制</div>
-                        <svg class="collapse-icon rotate" aria-hidden="true" focusable="false"
-                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
+                        <svg class="collapse-icon" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 512 512" fill="currentColor">
                             <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
                         </svg>
                     </div>
-                    <div class="section-content expanded" id="runControlContent">
+                    <div class="section-content" id="runControlContent">
                         <div class="button-group">
                             <button id="runInternal">内置终端运行</button>
                             <button id="runExternal">外部终端运行</button>
@@ -1155,8 +1155,7 @@ class CppCompilerSidebarProvider {
                         <div class="section-title">文件读写操作</div>
                         <svg class="collapse-icon" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"
                             viewBox="0 0 512 512" fill="currentColor">
-                            <path
-                                d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
+                            <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
                         </svg>
                     </div>
                     <div class="section-content" id="fileOperationsContent">
