@@ -762,7 +762,6 @@ class CppCompilerSidebarProvider {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>C++编译控制</title>
             <style>
-                /* 全局样式：基础重置 + 主题适配 */
                 * {
                     margin: 0;
                     padding: 0;
@@ -790,18 +789,27 @@ class CppCompilerSidebarProvider {
                 /* 可折叠区块：卡片化设计 + 层次阴影 */
                 .collapsible-section {
                     border-radius: 8px;
-                    background-color: var(--vscode-sideBarSectionHeader-background);
+                    background: linear-gradient(
+                        90deg,
+                        var(--vscode-sideBarSectionHeader-background) 0%,
+                        rgba(255, 255, 255, 0.05) 100%
+                    );
                     border: 1px solid var(--vscode-panel-border);
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     width: 100%;
                     overflow: hidden;
                 }
-        
+
                 .collapsible-section:hover {
                     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
                     border-color: var(--vscode-focusBorder);
                     transform: translateY(-1px);
+                    background: linear-gradient(
+                        90deg,
+                        var(--vscode-sideBarSectionHeader-background) 0%,
+                        rgba(255, 255, 255, 0.12) 100%
+                    );
                 }
         
                 /* 标题栏：增强交互反馈 */
@@ -870,30 +878,39 @@ class CppCompilerSidebarProvider {
                     max-height: 0;
                     overflow: hidden;
                     opacity: 0;
-                    transition: max-height 0.45s ease, padding 0.35s ease, opacity 0.35s ease;
+                    transform: translateY(-6px);
+                    transition:
+                        max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                        transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
                 }
         
                 .section-content.expanded {
                     padding: 18px 16px;
                     max-height: 800px;
                     opacity: 1;
+                    transform: translateY(0);
                 }
         
                 /* 输入框：现代扁平风格 */
                 input[type="text"] {
                     width: 100%;
-                    padding: 9px 14px;
+                    padding: 10px 14px;
                     border: 1px solid var(--vscode-input-border);
-                    background-color: var(--vscode-input-background);
+                    background: linear-gradient(145deg, var(--vscode-input-background), rgba(0,0,0,0.05));
                     color: var(--vscode-input-foreground);
                     font-size: 13px;
-                    height: 36px;
+                    height: 38px;
                     border-radius: 8px;
-                    transition: all 0.2s ease;
+                    transition: all 0.25s ease;
                     font-family: var(--vscode-font-family);
                     outline: none;
                     position: relative;
                     z-index: 1;
+
+                    /* 内阴影 + 轻微立体感 */
+                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
                 }
         
                 input[type="text"]:focus {
@@ -915,19 +932,29 @@ class CppCompilerSidebarProvider {
                 }
         
                 button {
-                    padding: 11px 16px;
-                    background-color: var(--vscode-button-background);
+                    padding: 12px 18px;
+                    background: linear-gradient(135deg, var(--vscode-button-background), #00b4d8);
                     color: var(--vscode-button-foreground);
                     border: none;
-                    border-radius: 8px;
+                    border-radius: 10px;
                     cursor: pointer;
-                    font-size: 13px;
-                    font-weight: 500;
-                    transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+                    font-size: 14px;
+                    font-weight: 600;
+                    letter-spacing: 0.3px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+
+                    /* 阴影 + 内发光 */
+                    box-shadow:
+                        0 4px 10px rgba(0, 0, 0, 0.25),
+                        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+
+                    /* 平滑过渡 */
+                    transition:
+                        transform 0.2s ease,
+                        box-shadow 0.2s ease,
+                        background 0.3s ease;
                 }
         
                 button:disabled {
@@ -949,30 +976,46 @@ class CppCompilerSidebarProvider {
                     transform: translateY(0);
                 }
         
-                /* 复选框：自定义样式 */
+                /* 复选框外容器 */
                 .checkbox-container {
                     display: flex;
                     align-items: center;
                     margin: 12px 0 0;
                     font-size: 13px;
-                    padding: 4px 8px;
-                    transition: background-color 0.2s ease;
-                    border-radius: 6px;
+                    padding: 6px 10px;
+                    border-radius: 8px;
                     cursor: pointer;
+                    user-select: none;
+                    transition: background-color 0.25s ease, transform 0.2s ease;
                 }
-        
+
+                /* hover 时容器微亮 */
                 .checkbox-container:hover {
-                    background-color: rgba(255, 255, 255, 0.03);
+                    background-color: rgba(255, 255, 255, 0.05);
                 }
-        
+
+                /* 系统默认复选框美化 */
                 input[type="checkbox"] {
                     margin-right: 8px;
                     width: 18px;
                     height: 18px;
-                    accent-color: var(--vscode-button-background);
+                    accent-color: var(--vscode-button-background); /* 控制系统默认勾选颜色 */
                     cursor: pointer;
                     border-radius: 4px;
-                    transition: all 0.2s ease;
+                    transition: all 0.25s ease;
+                    box-shadow: 0 0 4px rgba(0,0,0,0.3);
+                }
+
+                /* hover 时发光 */
+                input[type="checkbox"]:hover {
+                    box-shadow: 0 0 6px var(--vscode-button-background);
+                    transform: scale(1.1);
+                }
+
+                /* 选中时加强光效 */
+                input[type="checkbox"]:checked {
+                    box-shadow: 0 0 10px var(--vscode-button-background);
+                    transform: scale(1.15);
                 }
         
                 /* 保存按钮容器 */
@@ -1016,10 +1059,6 @@ class CppCompilerSidebarProvider {
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
                 }
         
-                .subsection:last-child {
-                    margin-bottom: 0;
-                }
-        
                 .subsection:hover {
                     border-color: var(--vscode-focusBorder);
                     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
@@ -1045,7 +1084,7 @@ class CppCompilerSidebarProvider {
                     opacity: 0;
                     transition: all 0.3s ease;
                     pointer-events: none;
-                    background-color: var(--vscode-input-background);
+                    background-color: var(--vscode-sideBar-background);
                     padding: 0 6px;
                     border-radius: 4px;
                     z-index: 2;
@@ -1080,17 +1119,6 @@ class CppCompilerSidebarProvider {
                         transform: translateY(-50%) scale(1);
                     }
                 }
-        
-                /* 主题适配 */
-                @media (prefers-color-scheme: light) {
-                    .collapsible-section {
-                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-                    }
-        
-                    .collapsible-section:hover {
-                        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.06);
-                    }
-                }
             </style>
         </head>
         
@@ -1103,8 +1131,7 @@ class CppCompilerSidebarProvider {
                         <div class="section-title">编译选项</div>
                         <svg class="collapse-icon" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"
                             viewBox="0 0 512 512" fill="currentColor">
-                            <path
-                                d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
+                            <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
                         </svg>
                     </div>
                     <div class="section-content" id="compileOptionsContent">

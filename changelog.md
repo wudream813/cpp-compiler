@@ -1,3 +1,5 @@
+# cpp-compiler v2.5.0
+> UI 改为渐变色，更美观
 # cpp-compiler v2.4.1
 - 添加 `changelog.md`
 > 微改，修复一个动画的奇怪 bug，同时添加了 `changelog.md`（突然想起）
