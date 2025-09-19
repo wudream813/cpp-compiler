@@ -1,3 +1,5 @@
+# cpp-compiler v2.8.1
+> 修复勾选框意外拉伸bug
 # cpp-compiler v2.8.0
 > 应 FlowerRed 老师所说，删去臃肿的一些 UI，改动了一些图标
 # cpp-compiler v2.7.0

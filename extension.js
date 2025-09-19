@@ -1020,6 +1020,7 @@ class CppCompilerSidebarProvider {
 
                 /* 系统默认复选框美化 */
                 input[type="checkbox"] {
+                    flex-shrink: 0;
                     margin-right: 8px;
                     width: 18px;
                     height: 18px;
