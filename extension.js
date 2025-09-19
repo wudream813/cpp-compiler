@@ -12,6 +12,7 @@ let compileStatus;
 let cache = {};
 let RunTerminal;
 let sidebarPanel;
+exports.sidebarPanel = sidebarPanel;
 const compileOutput = vscode.window.createOutputChannel('cpp-compiler:g++ 报错');
 const commandOutput = vscode.window.createOutputChannel('cpp-compiler');
 let fileConfigs = {};
@@ -58,6 +59,7 @@ function getConfig(section) {
     const config = vscode.workspace.getConfiguration('cpp-compiler').inspect(section);
     return config ? config.globalValue : undefined;
 }
+exports.getConfig = getConfig;
 
 // 计算MD5哈希
 function md5(str) {
@@ -66,6 +68,7 @@ function md5(str) {
 }
 
 function showText(content) {
+    compileOutput.clear();
     compileOutput.show(true);
     compileOutput.appendLine(content);
     return compileOutput;
@@ -83,6 +86,7 @@ function showCommand(content) {
     commandOutput.appendLine(getTime() + content + '\n');
     return commandOutput;
 }
+exports.showCommand = showCommand;
 
 function GetOutPath(cppPath) {
     const fileName = path.basename(cppPath, '.cpp')
@@ -177,6 +181,7 @@ function getFileConfig(filePath, key) {
     }
     return fileConfigs[filePath][key];
 }
+exports.getFileConfig = getFileConfig;
 
 // 设置当前文件的配置
 function setFileConfig(filePath, key, value) {
@@ -197,6 +202,7 @@ function setFileConfig(filePath, key, value) {
     }
     fileConfigs[filePath][key] = value;
 }
+exports.setFileConfig = setFileConfig;
 
 async function OnlyCompile(askUser) {
     const editor = vscode.window.activeTextEditor;
@@ -297,6 +303,7 @@ async function OnlyCompile(askUser) {
 
     return 1;
 }
+exports.OnlyCompile = OnlyCompile;
 
 // 核心编译逻辑
 async function compileAndRun(terminalType) {
@@ -305,6 +312,7 @@ async function compileAndRun(terminalType) {
         runProgram(GetOutPath(vscode.window.activeTextEditor.document.uri.fsPath), terminalType);
     }
 }
+exports.compileAndRun = compileAndRun;
 
 // 运行程序
 function runProgram(programPath, terminalType) {
@@ -533,17 +541,7 @@ class CppCompilerSidebarProvider {
                 case 'runInternal': {
                     const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
-
-                    const message = `
-        用户在侧边栏选择了在内置终端编译运行
-        编译选项：${compileOptions}
-        ${useStatic ? '启用' : '禁用'}静态编译
-        ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
-        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : ''}
-        ${useFileRedirect && useUnFileRedirect ? '，' : ''}
-        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : ''}
-        ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
-                    `.trim();
+                    const message = `用户在侧边栏选择了在内置终端编译运行\n           编译选项：${compileOptions}\n           ${useStatic ? '启用' : '禁用'}静态编译\n           ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序\n           ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}\n           ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`.trim();
 
                     showCommand(message);
                     compileAndRun('internal');
@@ -554,16 +552,7 @@ class CppCompilerSidebarProvider {
                     const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
-                    const message = `
-        用户在侧边栏选择了在外部终端编译运行
-        编译选项：${compileOptions}
-        ${useStatic ? '启用' : '禁用'}静态编译
-        ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
-        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : ''}
-        ${useFileRedirect && useUnFileRedirect ? '，' : ''}
-        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : ''}
-        ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
-                    `.trim();
+                    const message = `用户在侧边栏选择了在外部终端编译运行\n           编译选项：${compileOptions}\n           ${useStatic ? '启用' : '禁用'}静态编译\n           ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序\n           ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}\n           ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`.trim();
 
                     showCommand(message);
                     compileAndRun('external');
@@ -574,16 +563,7 @@ class CppCompilerSidebarProvider {
                     const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
-                    const message = `
-        用户在侧边栏选择了仅编译
-        编译选项：${compileOptions}
-        ${useStatic ? '启用' : '禁用'}静态编译
-        ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
-        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : ''}
-        ${useFileRedirect && useUnFileRedirect ? '，' : ''}
-        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : ''}
-        ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
-                    `.trim();
+                    const message = `用户在侧边栏选择了仅编译\n           编译选项：${compileOptions}\n           ${useStatic ? '启用' : '禁用'}静态编译\n           ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序\n           ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}\n           ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`.trim();
 
                     showCommand(message);
                     OnlyCompile(1);
@@ -594,7 +574,6 @@ class CppCompilerSidebarProvider {
                     showCommand(`用户在侧边栏更新了编译选项，现在为：${data.value}`);
                     const config = vscode.workspace.getConfiguration('cpp-compiler');
                     await config.update('compileOptions', data.value, vscode.ConfigurationTarget.Global);
-                    vscode.window.showInformationMessage('C++ 编译选项更新成功！');
                     this.updateWebviewContent();
                     break;
                 }
@@ -739,7 +718,7 @@ class CppCompilerSidebarProvider {
     }
 
     // 在 CppCompilerSidebarProvider 类的 _getHtmlForWebview 方法中修改
-    _getHtmlForWebview(webview) {
+    _getHtmlForWebview() {
         const compileOptions = getConfig('compileOptions') || '';
         const useStatic = getConfig('useStaticLinking') || false;
         const useConsoleInfo = getConfig('useConsoleInfo') || false;
@@ -762,426 +741,7 @@ class CppCompilerSidebarProvider {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>C++编译控制</title>
-            <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                    scrollbar-width: none;
-                    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
-                }
-        
-                body {
-                    background-color: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #fcf7ef85);
-                    color: var(--vscode-foreground);
-                    font-family: var(--vscode-font-family);
-                    font-size: 13px;
-                    line-height: 1.5;
-                    padding: 10px;
-                }
-        
-                .container {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 16px;
-                    width: 100%;
-                }
-        
-                /* 可折叠区块：卡片化设计 + 层次阴影 */
-                .collapsible-section {
-                    border-radius: 10px;
-                    background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) %80, #ffffff15);
-                    border: 1px solid var(--vscode-panel-border);
-                    box-shadow:
-                        0 2px 4px rgba(0, 0, 0, 0.04),
-                        0 1px 2px rgba(0, 0, 0, 0.02) inset;
-                    border-color: rgba(128, 128, 128, 0.4);
-                    transition:
-                        transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                        box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                        background 0.35s ease;
-                    width: 100%;
-                    overflow: hidden;
-                }
-
-                .collapsible-section:hover {
-                    box-shadow:
-                        0 8px 20px rgba(0, 0, 0, 0.12),
-                        0 2px 6px rgba(0, 0, 0, 0.06);
-                    border-color: var(--vscode-focusBorder);
-                    transform: translateY(-2px);
-                    background: linear-gradient(
-                        180deg,
-                        color-mix(in srgb, var(--vscode-button-background) 40%, #b3fffa77),
-                        var(--vscode-sideBarSectionHeader-background) 4%,
-                        rgba(202, 202, 202, 0.12) 94%,
-                        color-mix(in srgb, var(--vscode-button-background) 40%, #f2c8fd8f)
-                    );
-                }
-        
-                /* 标题栏：增强交互反馈 */
-                .section-header {
-                    font-weight: 600;
-                    padding: 14px 18px;
-                    color: var(--vscode-titleBar-activeForeground);
-                    font-size: 14px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    cursor: pointer;
-                    user-select: none;
-                    background: rgba(175, 175, 175, 0.07);
-                    backdrop-filter: blur(4px);
-                }
-        
-                .section-header::after {
-                    content: '';
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 1px;
-                    background-color: var(--vscode-panel-border);
-                    opacity: 0;
-                    transition: opacity 0.2s ease;
-                }
-        
-                .section-header:hover::after {
-                    opacity: 1;
-                }
-        
-                .section-title {
-                    display: flex;
-                    align-items: center;
-                }
-        
-                /* 恢复原始竖线标识 */
-                .section-title::before {
-                    content: '';
-                    display: inline-block;
-                    width: 3px;
-                    height: 14px;
-                    background: var(--vscode-button-background);
-                    margin-right: 8px;
-                    border-radius: 2px;
-                }
-        
-                /* 箭头图标：优化动画曲线 */
-                .collapse-icon {
-                    width: 16px;
-                    height: 16px;
-                    color: var(--vscode-descriptionForeground);
-                    transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-                    flex-shrink: 0;
-                }
-        
-                .rotate {
-                    transform: rotate(180deg);
-                }
-        
-                /* 内容区域：丝滑过渡 */
-                .section-content {
-                    padding: 0 18px;
-                    max-height: 0;
-                    overflow: hidden;
-                    opacity: 0;
-                    transform: translateY(-8px);
-                    transition:
-                        max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-                        padding 0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                        opacity 0.45s ease,
-                        transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                
-                .section-content.expanded {
-                    padding: 20px 18px;
-                    max-height: 900px;
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-                
-        
-                /* 输入框：现代扁平风格 */
-                input[type="text"] {
-                    width: 100%;
-                    padding: 10px 14px;
-                    height: 38px;
-
-                    border: 1px solid var(--vscode-input-border);
-                    border-radius: 10px;
-                    background: linear-gradient(
-                        145deg,
-                        var(--vscode-input-background),
-                        rgba(206, 206, 206, 0.04)
-                    );
-                    color: var(--vscode-input-foreground);
-                    font-size: 13px;
-                    font-family: var(--vscode-font-family);
-                    outline: none;
-                    position: relative;
-                    z-index: 1;
-
-                    /* 微立体感 */
-                    box-shadow:
-                        inset 0 2px 4px rgba(0,0,0,0.15),
-                        inset 0 -1px 2px rgba(255,255,255,0.05);
-
-                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-
-                /* hover → 边框/光感增强 */
-                input[type="text"]:hover {
-                    border-color: var(--vscode-focusBorder);
-                    box-shadow:
-                        inset 0 2px 4px rgba(0,0,0,0.15),
-                        0 0 6px color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent);
-                }
-
-                /* focus → 渐变高亮 + 主题色光晕 */
-                input[type="text"]:focus {
-                    border-color: var(--vscode-focusBorder);
-                    background: linear-gradient(
-                        160deg,
-                        var(--vscode-input-background),
-                        color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent)
-                    );
-                    box-shadow:
-                        0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent),
-                        0 0 10px color-mix(in srgb, var(--vscode-focusBorder) 25%, transparent);
-                }
-
-                /* placeholder 动画 */
-                input[type="text"]::placeholder {
-                    color: var(--vscode-input-placeholderForeground);
-                    opacity: 0.7;
-                    transition: opacity 0.25s ease;
-                }
-                input[type="text"]:focus::placeholder {
-                    opacity: 0.35;
-                }
-        
-                /* 按钮组：网格布局 */
-                .button-group {
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    gap: 10px;
-                    margin-top: 4px;
-                }
-        
-                button {
-                    padding: 12px 18px;
-                    background: color-mix(in srgb, var(--vscode-button-background) 70%, transparent);
-                    border: 2px solid transparent;
-                    color: var(--vscode-button-foreground);
-                    border-radius: 10px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 600;
-                    letter-spacing: 0.3px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-
-                    /* 阴影 + 内发光 */
-                    box-shadow:
-                        0 4px 10px rgba(0, 0, 0, 0.25),
-                        inset 0 1px 2px rgba(255, 255, 255, 0.1);
-
-                    /* 平滑过渡 */
-                    transition:
-                        transform 0.2s ease,
-                        box-shadow 0.2s ease,
-                        background 0.3s ease;
-                }
-        
-                button:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                    box-shadow: 0 6px 14px rgba(0,0,0,0.5);
-                    transform: none;
-                }
-        
-                button:hover:not(:disabled) {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 14px rgba(0,0,0,0.3);
-                }
-        
-                button:hover {
-                    border: 2px solid var(--vscode-focusBorder);
-                }
-        
-                button:active:not(:disabled) {
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-                    transform: translateY(0);
-                }
-        
-                /* 复选框外容器 */
-                .checkbox-container {
-                    display: flex;
-                    align-items: center;
-                    margin: 12px 0 0;
-                    font-size: 13px;
-                    padding: 6px 10px;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    user-select: none;
-                    transition: background-color 0.25s ease, transform 0.2s ease;
-                }
-
-                /* hover 时容器微亮 */
-                .checkbox-container:hover {
-                    background-color: rgba(255, 255, 255, 0.05);
-                }
-
-                /* 系统默认复选框美化 */
-                input[type="checkbox"] {
-                    flex-shrink: 0;
-                    margin-right: 8px;
-                    width: 18px;
-                    height: 18px;
-                    accent-color: var(--vscode-button-background); /* 控制系统默认勾选颜色 */
-                    cursor: pointer;
-                    border-radius: 4px;
-                    transition: all 0.25s ease;
-                    box-shadow: 0 0 4px rgba(0,0,0,0.3);
-                }
-
-                /* hover 时发光 */
-                input[type="checkbox"]:hover {
-                    box-shadow: 0 0 6px var(--vscode-button-background);
-                    transform: scale(1.1);
-                }
-
-                /* 选中时加强光效 */
-                input[type="checkbox"]:checked {
-                    box-shadow: 0 0 10px var(--vscode-button-background);
-                    transform: scale(1.15);
-                }
-        
-                /* 文件输入容器 */
-                .text-input-container {
-                    margin-bottom: 14px;
-                    position: relative;
-                }
-        
-                .text-input-label {
-                    display: block;
-                    margin-bottom: 6px;
-                    font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                    font-weight: 500;
-                    text-transform: uppercase;
-                    letter-spacing: 0.3px;
-                }
-        
-                .compilerOptions-input-label {
-                    text-align: center;
-                    text-shadow: 0 1px 2px rgba(0,0,0,0.15);
-                    margin-bottom: 6px;
-                    font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                    font-weight: 500;
-                    letter-spacing: 0.3px;
-                }
-                
-                .compilerOptions-input-label::after {
-                    content: "";
-                    display: block;
-                    width: 100%;
-                    height: 2px;
-                    margin: 4px auto 0;
-                    background: var(--vscode-panel-border);
-                    border-radius: 2px;
-                }
-        
-                /* 子区块：卡片化增强 */
-                .subsection {
-                    margin-bottom: 16px;
-                    padding: 16px;
-                    border-radius: 8px;
-                    background-color: var(--vscode-sideBar-background);
-                    border: 1px solid var(--vscode-panel-border);
-                    width: 100%;
-                    transition: all 0.2s ease;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-                }
-        
-                .subsection:hover {
-                    border-color: var(--vscode-focusBorder);
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
-                }
-        
-                .subsection-title {
-                    font-weight: 600;
-                    margin-bottom: 12px;
-                    color: var(--vscode-titleBar-activeForeground);
-                    font-size: 13px;
-                    padding-bottom: 6px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                }
-        
-                input:disabled {
-                    opacity: 0.7;
-                    cursor: not-allowed;
-                    background-color: var(--vscode-input-background);
-                }
-        
-                input:disabled::placeholder {
-                    color: var(--vscode-input-placeholderForeground);
-                }
-
-                /* 保存状态：动效增强 */
-                .save-status {
-                    position: absolute;
-                    right: 14px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    font-size: 12px;
-                    color: var(--vscode-testing-iconPassed);
-                    opacity: 0;
-                    pointer-events: none;
-                    background: linear-gradient(
-                        135deg,
-                        rgba(0, 200, 120, 0.15),
-                        rgba(0, 200, 120, 0.05)
-                    );
-                    padding: 2px 8px;
-                    border-radius: 6px;
-                    z-index: 2;
-                    font-weight: 500;
-                    letter-spacing: 0.3px;
-
-                    /* 微妙的阴影 + 边框 */
-                    border: 1px solid rgba(0, 200, 120, 0.3);
-                    box-shadow: 0 2px 6px rgba(0, 200, 120, 0.2);
-
-                    /* 动画更丝滑 */
-                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-
-                /* 显示时的样式 */
-                .save-status.visible {
-                    opacity: 1;
-                    transform: translateY(-50%) scale(1);
-                    animation: savePulse 1s ease forwards;
-                }
-
-                /* 出现时的小脉冲 */
-                @keyframes savePulse {
-                    0% {
-                        transform: translateY(-50%) scale(0.9);
-                        opacity: 0;
-                    }
-                    40% {
-                        transform: translateY(-50%) scale(1.1);
-                        opacity: 1;
-                    }
-                    100% {
-                        transform: translateY(-50%) scale(1);
-                        opacity: 1;
-                    }
-                }
-            </style>
+            <style> *{margin:0;padding:0;box-sizing:border-box;scrollbar-width:none;transition:color .2s ease,background-color .2s ease,border-color .2s ease}body{background-color:color-mix(in srgb,var(--vscode-sideBar-background) 90%,#fcf7ef85);color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:13px;line-height:1.5;padding:10px}.container{display:flex;flex-direction:column;gap:16px;width:100%}.collapsible-section{border-radius:10px;background:color-mix(in srgb,var(--vscode-sideBarSectionHeader-background) %80,#ffffff15);border:1px solid var(--vscode-panel-border);box-shadow:0 2px 4px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.02) inset;border-color:rgba(128,128,128,.4);transition:transform .28s cubic-bezier(.4,0,.2,1),box-shadow .28s cubic-bezier(.4,0,.2,1),background .35s ease;width:100%;overflow:hidden}.collapsible-section:hover{box-shadow:0 8px 20px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.06);border-color:var(--vscode-focusBorder);transform:translateY(-2px);background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-button-background) 40%,#b3fffa77),var(--vscode-sideBarSectionHeader-background) 4%,rgba(202,202,202,.12) 94%,color-mix(in srgb,var(--vscode-button-background) 40%,#f2c8fd8f))}.section-header{font-weight:600;padding:14px 18px;color:var(--vscode-titleBar-activeForeground);font-size:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;background:rgba(175,175,175,.07);backdrop-filter:blur(4px)}.section-header::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:1px;background-color:var(--vscode-panel-border);opacity:0;transition:opacity .2s ease}.section-header:hover::after{opacity:1}.section-title{display:flex;align-items:center}.section-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--vscode-button-background);margin-right:8px;border-radius:2px}.collapse-icon{width:16px;height:16px;color:var(--vscode-descriptionForeground);transition:transform .5s cubic-bezier(.25,1,.5,1);flex-shrink:0}.rotate{transform:rotate(180deg)}.section-content{padding:0 18px;max-height:0;overflow:hidden;opacity:0;transform:translateY(-8px);transition:max-height .55s cubic-bezier(.4,0,.2,1),padding .45s cubic-bezier(.4,0,.2,1),opacity .45s ease,transform .55s cubic-bezier(.4,0,.2,1)}.section-content.expanded{padding:20px 18px;max-height:900px;opacity:1;transform:translateY(0)}input[type=text]{width:100%;padding:10px 14px;height:38px;border:1px solid var(--vscode-input-border);border-radius:10px;background:linear-gradient(145deg,var(--vscode-input-background),rgba(206,206,206,.04));color:var(--vscode-input-foreground);font-size:13px;font-family:var(--vscode-font-family);outline:none;position:relative;z-index:1;box-shadow:inset 0 2px 4px rgba(0,0,0,.15),inset 0 -1px 2px rgba(255,255,255,.05);transition:all .35s cubic-bezier(.4,0,.2,1)}input[type=text]:hover{border-color:var(--vscode-focusBorder);box-shadow:inset 0 2px 4px rgba(0,0,0,.15),0 0 6px color-mix(in srgb,var(--vscode-focusBorder) 35%,transparent)}input[type=text]:focus{border-color:var(--vscode-focusBorder);background:linear-gradient(160deg,var(--vscode-input-background),color-mix(in srgb,var(--vscode-focusBorder) 12%,transparent));box-shadow:0 0 0 2px color-mix(in srgb,var(--vscode-focusBorder) 40%,transparent),0 0 10px color-mix(in srgb,var(--vscode-focusBorder) 25%,transparent)}input[type=text]::placeholder{color:var(--vscode-input-placeholderForeground);opacity:.7;transition:opacity .25s ease}input[type=text]:focus::placeholder{opacity:.35}.button-group{display:grid;grid-template-columns:1fr;gap:10px;margin-top:4px}button{padding:12px 18px;background:color-mix(in srgb,var(--vscode-button-background) 70%,transparent);border:2px solid transparent;color:var(--vscode-button-foreground);border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.25),inset 0 1px 2px rgba(255,255,255,.1);transition:transform .2s ease,box-shadow .2s ease,background .3s ease}button:disabled{opacity:.5;cursor:not-allowed;box-shadow:0 6px 14px rgba(0,0,0,.5);transform:none}button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.3)}button:hover{border:2px solid var(--vscode-focusBorder)}button:active:not(:disabled){box-shadow:0 2px 4px rgba(0,0,0,.04);transform:translateY(0)}.checkbox-container{display:flex;align-items:center;margin:12px 0 0;font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer;user-select:none;transition:background-color .25s ease,transform .2s ease}.checkbox-container:hover{background-color:rgba(255,255,255,.05)}input[type=checkbox]{flex-shrink:0;margin-right:8px;width:18px;height:18px;accent-color:var(--vscode-button-background);cursor:pointer;border-radius:4px;transition:all .25s ease;box-shadow:0 0 4px rgba(0,0,0,.3)}input[type=checkbox]:hover{box-shadow:0 0 6px var(--vscode-button-background);transform:scale(1.1)}input[type=checkbox]:checked{box-shadow:0 0 10px var(--vscode-button-background);transform:scale(1.15)}.text-input-container{margin-bottom:14px;position:relative}.text-input-label{display:block;margin-bottom:6px;font-size:12px;color:var(--vscode-descriptionForeground);font-weight:500;text-transform:uppercase;letter-spacing:.3px}.compilerOptions-input-label{text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.15);margin-bottom:6px;font-size:12px;color:var(--vscode-descriptionForeground);font-weight:500;letter-spacing:.3px}.compilerOptions-input-label::after{content:"";display:block;width:100%;height:2px;margin:4px auto 0;background:var(--vscode-panel-border);border-radius:2px}.subsection{margin-bottom:16px;padding:16px;border-radius:8px;background-color:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);width:100%;transition:all .2s ease;box-shadow:0 2px 4px rgba(0,0,0,.02)}.subsection:hover{border-color:var(--vscode-focusBorder);box-shadow:0 4px 8px rgba(0,0,0,.04)}.subsection-title{font-weight:600;margin-bottom:12px;color:var(--vscode-titleBar-activeForeground);font-size:13px;padding-bottom:6px;border-bottom:1px solid var(--vscode-panel-border)}input:disabled{opacity:.7;cursor:not-allowed;background-color:var(--vscode-input-background)}input:disabled::placeholder{color:var(--vscode-input-placeholderForeground)}.save-status{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--vscode-testing-iconPassed);opacity:0;pointer-events:none;background:linear-gradient(135deg,rgba(0,200,120,.15),rgba(0,200,120,.05));padding:2px 8px;border-radius:6px;z-index:2;font-weight:500;letter-spacing:.3px;border:1px solid rgba(0,200,120,.3);box-shadow:0 2px 6px rgba(0,200,120,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}.save-status.visible{opacity:1;transform:translateY(-50%) scale(1);animation:savePulse 1s ease forwards}@keyframes savePulse{0%{transform:translateY(-50%) scale(.9);opacity:0}40%{transform:translateY(-50%) scale(1.1);opacity:1}100%{transform:translateY(-50%) scale(1);opacity:1}} </style>
         </head>
         
         <body>
@@ -1542,7 +1102,6 @@ class CppCompilerSidebarProvider {
 
 // 激活扩展
 function activate(context) {
-    extensionContext = context; // 保存上下文
 
     // 初始化终端
     RunTerminal = getTerminal();
