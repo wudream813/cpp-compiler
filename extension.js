@@ -170,7 +170,7 @@ function getFileConfig(filePath, key) {
             unFileOutputFile: `${baseName}.out`,
             useFileRedirect: false,
             useUnFileRedirect: false,
-            card1open: false,
+            card1open: true,
             card2open: true,
             card3open: false
         };
@@ -190,7 +190,7 @@ function setFileConfig(filePath, key, value) {
             unFileOutputFile: `${baseName}.out`,
             useFileRedirect: false,
             useUnFileRedirect: false,
-            card1open: false,
+            card1open: true,
             card2open: true,
             card3open: false
         };
@@ -487,6 +487,7 @@ class CppCompilerSidebarProvider {
         };
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+        
 
         webviewView.onDidChangeVisibility(() => {
             // 当视图重新可见时更新按钮状态
@@ -513,27 +514,19 @@ class CppCompilerSidebarProvider {
 
         // 监听来自webview的消息
         webviewView.webview.onDidReceiveMessage(async (data) => {
-            const editor = vscode.window.activeTextEditor;
-            const isCppFile = editor && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file';
-            const filePath = isCppFile ? editor.document.uri.fsPath : null;
-
             switch (data.type) {
                 case 'runInternal': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
-                    const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+                    const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
+                    const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
                     const message = `
         用户在侧边栏选择了在内置终端编译运行
         编译选项：${compileOptions}
         ${useStatic ? '启用' : '禁用'}静态编译
         ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
-        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}
+        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : ''}
         ${useFileRedirect && useUnFileRedirect ? '，' : ''}
-        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}
+        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : ''}
         ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
                     `.trim();
 
@@ -543,21 +536,17 @@ class CppCompilerSidebarProvider {
                 }
 
                 case 'runExternal': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
-                    const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+                    const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
+                    const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
                     const message = `
         用户在侧边栏选择了在外部终端编译运行
         编译选项：${compileOptions}
         ${useStatic ? '启用' : '禁用'}静态编译
         ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
-        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}
+        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : ''}
         ${useFileRedirect && useUnFileRedirect ? '，' : ''}
-        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}
+        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : ''}
         ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
                     `.trim();
 
@@ -567,22 +556,17 @@ class CppCompilerSidebarProvider {
                 }
 
                 case 'onlyCompile': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-
-                    const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
-                    const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+                    const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
+                    const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
                     const message = `
         用户在侧边栏选择了仅编译
         编译选项：${compileOptions}
         ${useStatic ? '启用' : '禁用'}静态编译
         ${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序
-        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(filePath, 'inputFile')}，输出文件为 ${getFileConfig(filePath, 'outputFile')}` : ''}
+        ${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : ''}
         ${useFileRedirect && useUnFileRedirect ? '，' : ''}
-        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(filePath, 'unFileOutputFile')}` : ''}
+        ${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : ''}
         ${!useFileRedirect && !useUnFileRedirect ? '禁用文件重定向' : ''}
                     `.trim();
 
@@ -617,81 +601,56 @@ class CppCompilerSidebarProvider {
                 }
 
                 case 'toggleFileRedirect': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的文件重定向，现在为：${data.value}`);
-                    setFileConfig(filePath, 'useFileRedirect', data.value);
+                    showCommand(`用户在侧边栏更新了 ${data.filePath} 的文件重定向，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'useFileRedirect', data.value);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'toggleUnFileRedirect': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的反文件重定向，现在为：${data.value}`);
-                    setFileConfig(filePath, 'useUnFileRedirect', data.value);
+                    showCommand(`用户在侧边栏更新了 ${data.filePath} 的反文件重定向，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'useUnFileRedirect', data.value);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'updateInputFile': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的输入文件路径，现在为：${data.value}`);
-                    setFileConfig(filePath, 'inputFile', data.value);
+                    showCommand(`用户在侧边栏更新了 ${data.filePath} 的输入文件路径，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'inputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'updateOutputFile': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的输出文件路径，现在为：${data.value}`);
-                    setFileConfig(filePath, 'outputFile', data.value);
+                    showCommand(`用户在侧边栏更新了 ${data.filePath} 的输出文件路径，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'outputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'updateUnFileInputFile': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的反输入文件路径，现在为：${data.value}`);
-                    setFileConfig(filePath, 'unFileInputFile', data.value);
+                    showCommand(`用户在侧边栏更新了 ${data.filePath} 的反输入文件路径，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'unFileInputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'updateUnFileOutputFile': {
-                    if (!isCppFile) {
-                        vscode.window.showErrorMessage('cpp-compiler: 没有活动的本地 C++ 文件！');
-                        return;
-                    }
-                    showCommand(`用户在侧边栏更新了 ${filePath} 的反输出文件路径，现在为：${data.value}`);
-                    setFileConfig(filePath, 'unFileOutputFile', data.value);
+                    showCommand(`用户在侧边栏更新了 ${data.filePath} 的反输出文件路径，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'unFileOutputFile', data.value);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'updateCardState': {
-                    if (!isCppFile) return;
                     let key = '';
                     if (data.section === 'compileOptions') key = 'card1open';
                     else if (data.section === 'runControl') key = 'card2open';
                     else if (data.section === 'fileOperations') key = 'card3open';
 
                     if (key) {
-                        setFileConfig(filePath, key, data.value);
-                        showCommand(`用户在侧边栏更新了 ${filePath} 的 ${key} 状态，现在为：${data.value}`);
+                        setFileConfig(data.filePath, key, data.value);
+                        showCommand(`用户在侧边栏更新了 ${data.filePath} 的 ${key} 状态，现在为：${data.value}`);
                     }
                     break;
                 }
@@ -722,12 +681,13 @@ class CppCompilerSidebarProvider {
         let useFileRedirect = false;
         let useUnFileRedirect = false;
         let isCppFile = false;
-        let card1open = false;
+        let card1open = true;
         let card2open = true;
         let card3open = false;
+        let filePath = null;
     
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
-            const filePath = editor.document.uri.fsPath;
+            filePath = editor.document.uri.fsPath;
             inputFile = getFileConfig(filePath, 'inputFile');
             outputFile = getFileConfig(filePath, 'outputFile');
             unFileInputFile = getFileConfig(filePath, 'unFileInputFile');
@@ -739,6 +699,11 @@ class CppCompilerSidebarProvider {
             card3open = getFileConfig(filePath, 'card3open');
             isCppFile = true;
         }
+        
+        sidebarPanel.webview.postMessage({
+            type: 'init',
+            filePath: filePath
+        });
     
         sidebarPanel.webview.postMessage({
             type: 'updateConfig',
@@ -792,7 +757,7 @@ class CppCompilerSidebarProvider {
                 }
         
                 body {
-                    background-color: var(--vscode-sideBar-background);
+                    background-color: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #fcf7ef85);
                     color: var(--vscode-foreground);
                     font-family: var(--vscode-font-family);
                     font-size: 13px;
@@ -809,34 +774,40 @@ class CppCompilerSidebarProvider {
         
                 /* 可折叠区块：卡片化设计 + 层次阴影 */
                 .collapsible-section {
-                    border-radius: 8px;
-                    background: linear-gradient(
-                        90deg,
-                        var(--vscode-sideBarSectionHeader-background) 0%,
-                        rgba(255, 255, 255, 0.05) 100%
-                    );
+                    border-radius: 10px;
+                    background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) %80, #ffffff15);
                     border: 1px solid var(--vscode-panel-border);
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    box-shadow:
+                        0 2px 4px rgba(0, 0, 0, 0.04),
+                        0 1px 2px rgba(0, 0, 0, 0.02) inset;
+                    border-color: rgba(128, 128, 128, 0.4);
+                    transition:
+                        transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                        background 0.35s ease;
                     width: 100%;
                     overflow: hidden;
                 }
 
                 .collapsible-section:hover {
-                    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+                    box-shadow:
+                        0 8px 20px rgba(0, 0, 0, 0.12),
+                        0 2px 6px rgba(0, 0, 0, 0.06);
                     border-color: var(--vscode-focusBorder);
-                    transform: translateY(-1px);
+                    transform: translateY(-2px);
                     background: linear-gradient(
-                        90deg,
-                        var(--vscode-sideBarSectionHeader-background) 0%,
-                        rgba(255, 255, 255, 0.12) 100%
+                        180deg,
+                        color-mix(in srgb, var(--vscode-button-background) 40%, #b3fffa77),
+                        var(--vscode-sideBarSectionHeader-background) 4%,
+                        rgba(202, 202, 202, 0.12) 94%,
+                        color-mix(in srgb, var(--vscode-button-background) 40%, #f2c8fd8f)
                     );
                 }
         
                 /* 标题栏：增强交互反馈 */
                 .section-header {
                     font-weight: 600;
-                    padding: 12px 16px;
+                    padding: 14px 18px;
                     color: var(--vscode-titleBar-activeForeground);
                     font-size: 14px;
                     display: flex;
@@ -844,8 +815,8 @@ class CppCompilerSidebarProvider {
                     justify-content: space-between;
                     cursor: pointer;
                     user-select: none;
-                    background-color: transparent;
-                    position: relative;
+                    background: rgba(175, 175, 175, 0.07);
+                    backdrop-filter: blur(4px);
                 }
         
                 .section-header::after {
@@ -885,7 +856,7 @@ class CppCompilerSidebarProvider {
                     width: 16px;
                     height: 16px;
                     color: var(--vscode-descriptionForeground);
-                    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+                    transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
                     flex-shrink: 0;
                 }
         
@@ -899,49 +870,79 @@ class CppCompilerSidebarProvider {
                     max-height: 0;
                     overflow: hidden;
                     opacity: 0;
-                    transform: translateY(-6px);
+                    transform: translateY(-8px);
                     transition:
-                        max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                        padding 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                        opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                        transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+                        max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.45s ease,
+                        transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-        
+                
                 .section-content.expanded {
-                    padding: 18px 16px;
-                    max-height: 800px;
+                    padding: 20px 18px;
+                    max-height: 900px;
                     opacity: 1;
                     transform: translateY(0);
                 }
+                
         
                 /* 输入框：现代扁平风格 */
                 input[type="text"] {
                     width: 100%;
                     padding: 10px 14px;
+                    height: 38px;
+
                     border: 1px solid var(--vscode-input-border);
-                    background: linear-gradient(145deg, var(--vscode-input-background), rgba(0,0,0,0.05));
+                    border-radius: 10px;
+                    background: linear-gradient(
+                        145deg,
+                        var(--vscode-input-background),
+                        rgba(206, 206, 206, 0.04)
+                    );
                     color: var(--vscode-input-foreground);
                     font-size: 13px;
-                    height: 38px;
-                    border-radius: 8px;
-                    transition: all 0.25s ease;
                     font-family: var(--vscode-font-family);
                     outline: none;
                     position: relative;
                     z-index: 1;
 
-                    /* 内阴影 + 轻微立体感 */
-                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+                    /* 微立体感 */
+                    box-shadow:
+                        inset 0 2px 4px rgba(0,0,0,0.15),
+                        inset 0 -1px 2px rgba(255,255,255,0.05);
+
+                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-        
+
+                /* hover → 边框/光感增强 */
+                input[type="text"]:hover {
+                    border-color: var(--vscode-focusBorder);
+                    box-shadow:
+                        inset 0 2px 4px rgba(0,0,0,0.15),
+                        0 0 6px color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent);
+                }
+
+                /* focus → 渐变高亮 + 主题色光晕 */
                 input[type="text"]:focus {
                     border-color: var(--vscode-focusBorder);
-                    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15);
+                    background: linear-gradient(
+                        160deg,
+                        var(--vscode-input-background),
+                        color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent)
+                    );
+                    box-shadow:
+                        0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent),
+                        0 0 10px color-mix(in srgb, var(--vscode-focusBorder) 25%, transparent);
                 }
-        
+
+                /* placeholder 动画 */
                 input[type="text"]::placeholder {
                     color: var(--vscode-input-placeholderForeground);
-                    opacity: 0.8;
+                    opacity: 0.7;
+                    transition: opacity 0.25s ease;
+                }
+                input[type="text"]:focus::placeholder {
+                    opacity: 0.35;
                 }
         
                 /* 按钮组：网格布局 */
@@ -954,9 +955,14 @@ class CppCompilerSidebarProvider {
         
                 button {
                     padding: 12px 18px;
-                    background: linear-gradient(135deg, var(--vscode-button-background), #00b4d8);
+                    background: linear-gradient(
+                        120deg,
+                        color-mix(in srgb, var(--vscode-button-background) 50%, #8dfff9),
+                        var(--vscode-button-background),
+                        color-mix(in srgb, var(--vscode-button-background) 50%, #8dfff9)
+                    );
+                    border: 2px solid transparent;
                     color: var(--vscode-button-foreground);
-                    border: none;
                     border-radius: 10px;
                     cursor: pointer;
                     font-size: 14px;
@@ -979,17 +985,19 @@ class CppCompilerSidebarProvider {
                 }
         
                 button:disabled {
-                    background-color: var(--vscode-button-background);
                     opacity: 0.5;
                     cursor: not-allowed;
-                    box-shadow: none;
+                    box-shadow: 0 6px 14px rgba(0,0,0,0.5);
                     transform: none;
                 }
         
                 button:hover:not(:disabled) {
-                    background-color: var(--vscode-button-hoverBackground);
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
-                    transform: translateY(-1px);
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 14px rgba(0,0,0,0.3);
+                }
+        
+                button:hover {
+                    border: 2px solid var(--vscode-focusBorder);
                 }
         
                 button:active:not(:disabled) {
@@ -1039,26 +1047,13 @@ class CppCompilerSidebarProvider {
                     transform: scale(1.15);
                 }
         
-                /* 保存按钮容器 */
-                .save-options-container {
-                    margin-top: 12px;
-                    display: flex;
-                    justify-content: center;
-                }
-        
-                #saveOptions {
-                    padding: 8px 20px;
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                }
-        
                 /* 文件输入容器 */
-                .file-input-container {
+                .text-input-container {
                     margin-bottom: 14px;
                     position: relative;
                 }
         
-                .file-input-label {
+                .text-input-label {
                     display: block;
                     margin-bottom: 6px;
                     font-size: 12px;
@@ -1066,6 +1061,26 @@ class CppCompilerSidebarProvider {
                     font-weight: 500;
                     text-transform: uppercase;
                     letter-spacing: 0.3px;
+                }
+        
+                .compilerOptions-input-label {
+                    text-align: center;
+                    text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+                    margin-bottom: 6px;
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                    font-weight: 500;
+                    letter-spacing: 0.3px;
+                }
+                
+                .compilerOptions-input-label::after {
+                    content: "";
+                    display: block;
+                    width: 100%;
+                    height: 2px;
+                    margin: 4px auto 0;
+                    background: var(--vscode-panel-border);
+                    border-radius: 2px;
                 }
         
                 /* 子区块：卡片化增强 */
@@ -1094,23 +1109,6 @@ class CppCompilerSidebarProvider {
                     border-bottom: 1px solid var(--vscode-panel-border);
                 }
         
-                /* 保存状态：动效增强 */
-                .save-status {
-                    position: absolute;
-                    right: 14px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    font-size: 12px;
-                    color: var(--vscode-testing-iconPassed);
-                    opacity: 0;
-                    transition: all 0.3s ease;
-                    pointer-events: none;
-                    background-color: var(--vscode-sideBar-background);
-                    padding: 0 6px;
-                    border-radius: 4px;
-                    z-index: 2;
-                }
-        
                 input:disabled {
                     opacity: 0.7;
                     cursor: not-allowed;
@@ -1120,24 +1118,56 @@ class CppCompilerSidebarProvider {
                 input:disabled::placeholder {
                     color: var(--vscode-input-placeholderForeground);
                 }
-        
-                .save-status.visible {
-                    opacity: 0.9;
-                    background-color: var(--vscode-sideBar-background);
-                    animation: pulse 0.5s ease;
+
+                /* 保存状态：动效增强 */
+                .save-status {
+                    position: absolute;
+                    right: 14px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    font-size: 12px;
+                    color: var(--vscode-testing-iconPassed);
+                    opacity: 0;
+                    pointer-events: none;
+                    background: linear-gradient(
+                        135deg,
+                        rgba(0, 200, 120, 0.15),
+                        rgba(0, 200, 120, 0.05)
+                    );
+                    padding: 2px 8px;
+                    border-radius: 6px;
+                    z-index: 2;
+                    font-weight: 500;
+                    letter-spacing: 0.3px;
+
+                    /* 微妙的阴影 + 边框 */
+                    border: 1px solid rgba(0, 200, 120, 0.3);
+                    box-shadow: 0 2px 6px rgba(0, 200, 120, 0.2);
+
+                    /* 动画更丝滑 */
+                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-        
-                @keyframes pulse {
+
+                /* 显示时的样式 */
+                .save-status.visible {
+                    opacity: 1;
+                    transform: translateY(-50%) scale(1);
+                    animation: savePulse 1s ease forwards;
+                }
+
+                /* 出现时的小脉冲 */
+                @keyframes savePulse {
                     0% {
                         transform: translateY(-50%) scale(0.9);
+                        opacity: 0;
                     }
-        
-                    50% {
-                        transform: translateY(-50%) scale(1.05);
+                    40% {
+                        transform: translateY(-50%) scale(1.1);
+                        opacity: 1;
                     }
-        
                     100% {
                         transform: translateY(-50%) scale(1);
+                        opacity: 1;
                     }
                 }
             </style>
@@ -1149,17 +1179,18 @@ class CppCompilerSidebarProvider {
                 <!-- 编译选项区块（可折叠） -->
                 <div class="collapsible-section">
                     <div class="section-header" data-section="compileOptions">
-                        <div class="section-title">编译选项</div>
+                        <div class="section-title">编译设置</div>
                         <svg class="collapse-icon" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"
                             viewBox="0 0 512 512" fill="currentColor">
                             <path d="M267.3 395.3c-6.2 6.2-16.4 6.2-22.6 0l-192-192c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L256 361.4 436.7 180.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6l-192 192z" />
                         </svg>
                     </div>
                     <div class="section-content" id="compileOptionsContent">
-                        <input type="text" id="compileOptions" value="${compileOptions.replace(/" /g, '&quot;' )}"
-                            placeholder="输入编译选项，如：-std=c++17 -Wall">
-                        <div class="save-options-container">
-                            <button id="saveOptions">保存编译选项</button>
+                        <div class="text-input-container">
+                            <div class="compilerOptions-input-label">g++ 编译选项</div>
+                            <input type="text" id="compileOptions" value="${compileOptions.replace(/" /g, '&quot;' )}"
+                                placeholder="输入编译选项，如：-std=c++17 -Wall">
+                            <div class="save-status" id="compileOptionsStatus">✓ 已保存</div>
                         </div>
                         <div class="checkbox-container">
                             <input type="checkbox" id="staticLinking" ${useStatic ? 'checked' : '' }>
@@ -1210,14 +1241,14 @@ class CppCompilerSidebarProvider {
                         <!-- 文件读写子区块 -->
                         <div class="subsection">
                             <div class="subsection-title">文件读写</div>
-                            <div class="file-input-container">
-                                <div class="file-input-label">输入文件</div>
+                            <div class="text-input-container">
+                                <div class="text-input-label">输入文件</div>
                                 <input type="text" id="inputFile" value="" placeholder="需要打开本地C++文件" title="需要打开本地C++文件"
                                     disabled>
                                 <div class="save-status" id="inputFileStatus">✓ 已保存</div>
                             </div>
-                            <div class="file-input-container">
-                                <div class="file-input-label">输出文件</div>
+                            <div class="text-input-container">
+                                <div class="text-input-label">输出文件</div>
                                 <input type="text" id="outputFile" value="" placeholder="需要打开本地C++文件" title="需要打开本地C++文件"
                                     disabled>
                                 <div class="save-status" id="outputFileStatus">✓ 已保存</div>
@@ -1231,14 +1262,14 @@ class CppCompilerSidebarProvider {
                         <!-- 反文件读写子区块 -->
                         <div class="subsection">
                             <div class="subsection-title">反文件读写</div>
-                            <div class="file-input-container">
-                                <div class="file-input-label">输入文件</div>
+                            <div class="text-input-container">
+                                <div class="text-input-label">输入文件</div>
                                 <input type="text" id="unFileInputFile" value="" placeholder="需要打开本地C++文件" title="需要打开本地C++文件"
                                     disabled>
                                 <div class="save-status" id="unFileInputFileStatus">✓ 已保存</div>
                             </div>
-                            <div class="file-input-container">
-                                <div class="file-input-label">输出文件</div>
+                            <div class="text-input-container">
+                                <div class="text-input-label">输出文件</div>
                                 <input type="text" id="unFileOutputFile" value="" placeholder="需要打开本地C++文件" title="需要打开本地C++文件"
                                     disabled>
                                 <div class="save-status" id="unFileOutputFileStatus">✓ 已保存</div>
@@ -1260,47 +1291,62 @@ class CppCompilerSidebarProvider {
             </div>
         
             <script>
-                const vscode = acquireVsCodeApi();
-        
                 // 初始化可折叠功能
+                // VSCode webview API
+                const vscode = acquireVsCodeApi();
+
+                // 存储扩展端传过来的当前文件路径
+                let filePath = null;
+
+                // 接收扩展端初始化消息
+                window.addEventListener('message', event => {
+                    const data = event.data;
+                    if (data.type === 'init') {
+                        filePath = data.filePath;
+                    }
+                });
+
+                // 折叠面板切换
                 document.querySelectorAll('.section-header').forEach(header => {
                     header.addEventListener('click', () => {
                         const sectionId = header.getAttribute('data-section');
                         const content = document.getElementById(sectionId + 'Content');
                         const icon = header.querySelector('.collapse-icon');
-                
-                        // 切换并获取切换后的状态（true 表示现在是展开状态）
+
+                        // 切换并获取切换后的状态
                         const isExpanded = content.classList.toggle('expanded');
                         icon.classList.toggle('rotate');
-                
-                        // 发送给扩展
-                        vscode.postMessage({
-                            type: 'updateCardState',
-                            section: sectionId,
-                            value: isExpanded
-                        });
+
+                        if(filePath){
+                            vscode.postMessage({
+                                type: 'updateCardState',
+                                section: sectionId,
+                                filePath: filePath,
+                                value: isExpanded
+                            });
+                        }
                     });
                 });
-                
-        
+
                 // 显示保存状态
                 function showSaveStatus(elementId) {
                     const statusElement = document.getElementById(elementId);
                     statusElement.classList.add('visible');
                     setTimeout(() => {
                         statusElement.classList.remove('visible');
-                    }, 2000);
+                    }, 3000);
                 }
-        
+
                 // 保存编译选项
-                document.getElementById('saveOptions').addEventListener('click', () => {
+                document.getElementById('compileOptions').addEventListener('blur', () => {
                     const options = document.getElementById('compileOptions').value.trim();
                     vscode.postMessage({
                         type: 'updateCompileOptions',
                         value: options
                     });
+                    showSaveStatus('compileOptionsStatus')
                 });
-        
+
                 // 静态链接选项
                 document.getElementById('staticLinking').addEventListener('change', (e) => {
                     vscode.postMessage({
@@ -1308,82 +1354,96 @@ class CppCompilerSidebarProvider {
                         value: e.target.checked
                     });
                 });
-        
-                // ConsoleInfo选项
+
+                // ConsoleInfo 选项
                 document.getElementById('useConsoleInfo').addEventListener('change', (e) => {
                     vscode.postMessage({
                         type: 'toggleuseConsoleInfo',
                         value: e.target.checked
                     });
                 });
-        
+
                 // 文件读写输入框保存
                 document.getElementById('inputFile').addEventListener('blur', (e) => {
-                    const inputFile = e.target.value.trim();
-                    vscode.postMessage({
-                        type: 'updateInputFile',
-                        value: inputFile
-                    });
-                    showSaveStatus('inputFileStatus');
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'updateInputFile',
+                            filePath: filePath,
+                            value: e.target.value.trim()
+                        });
+                        showSaveStatus('inputFileStatus');
+                    }
                 });
-        
+
                 // 文件读写输出框保存
                 document.getElementById('outputFile').addEventListener('blur', (e) => {
-                    const outputFile = e.target.value.trim();
-                    vscode.postMessage({
-                        type: 'updateOutputFile',
-                        value: outputFile
-                    });
-                    showSaveStatus('outputFileStatus');
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'updateOutputFile',
+                            filePath: filePath,
+                            value: e.target.value.trim()
+                        });
+                        showSaveStatus('outputFileStatus');
+                    }
                 });
-        
+
                 // 反文件读写输入框保存
                 document.getElementById('unFileInputFile').addEventListener('blur', (e) => {
-                    const unFileInputFile = e.target.value.trim();
-                    vscode.postMessage({
-                        type: 'updateUnFileInputFile',
-                        value: unFileInputFile
-                    });
-                    showSaveStatus('unFileInputFileStatus');
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'updateUnFileInputFile',
+                            filePath: filePath,
+                            value: e.target.value.trim()
+                        });
+                        showSaveStatus('unFileInputFileStatus');
+                    }
                 });
-        
+
                 // 反文件读写输出框保存
                 document.getElementById('unFileOutputFile').addEventListener('blur', (e) => {
-                    const unFileOutputFile = e.target.value.trim();
-                    vscode.postMessage({
-                        type: 'updateUnFileOutputFile',
-                        value: unFileOutputFile
-                    });
-                    showSaveStatus('unFileOutputFileStatus');
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'updateUnFileOutputFile',
+                            filePath: filePath,
+                            value: e.target.value.trim()
+                        });
+                        showSaveStatus('unFileOutputFileStatus');
+                    }
                 });
-        
+
                 // 文件重定向选项
                 document.getElementById('useFileRedirect').addEventListener('change', (e) => {
-                    vscode.postMessage({
-                        type: 'toggleFileRedirect',
-                        value: e.target.checked
-                    });
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'toggleFileRedirect',
+                            filePath: filePath,
+                            value: e.target.checked
+                        });
+                    }
                 });
-        
+
                 // 反文件重定向选项
                 document.getElementById('useUnFileRedirect').addEventListener('change', (e) => {
-                    vscode.postMessage({
-                        type: 'toggleUnFileRedirect',
-                        value: e.target.checked
-                    });
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'toggleUnFileRedirect',
+                            filePath: filePath,
+                            value: e.target.checked
+                        });
+                    }
                 });
-        
+
                 // 运行按钮
                 document.getElementById('runInternal').addEventListener('click', () => {
-                    vscode.postMessage({ type: 'runInternal' });
+                    if(filePath)vscode.postMessage({ type: 'runInternal', filePath: filePath });
                 });
-        
+
                 document.getElementById('runExternal').addEventListener('click', () => {
-                    vscode.postMessage({ type: 'runExternal' });
+                    if(filePath)vscode.postMessage({ type: 'runExternal', filePath: filePath });
                 });
-        
+
                 document.getElementById('onlyCompile').addEventListener('click', () => {
-                    vscode.postMessage({ type: 'onlyCompile' });
+                    if(filePath)vscode.postMessage({ type: 'onlyCompile', filePath: filePath });
                 });
         
                 // 监听扩展消息
@@ -1439,7 +1499,7 @@ class CppCompilerSidebarProvider {
                             document.getElementById('inputFile').value = data.inputFile;
                             document.getElementById('outputFile').value = data.outputFile;
                             document.getElementById('unFileInputFile').value = data.unFileInputFile;
-                            document.getElementById('unFileOutputFile').value = data.unFileOutputFile;
+                                document.getElementById('unFileOutputFile').value = data.unFileOutputFile;
                         }
 
                         // 恢复卡片展开/收起状态

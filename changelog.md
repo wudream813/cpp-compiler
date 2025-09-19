@@ -1,3 +1,5 @@
+# cpp-compiler v2.7.0
+> 删除代码片段功能，修复了页面切换更新不同步 bug，UI 稍改，做了一个好看点的图片
 # cpp-compiler v2.6.0
 > 新增代码片段，增强资源管理器
 # cpp-compiler v2.5.0

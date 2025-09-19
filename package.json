@@ -1,7 +1,7 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "2.5.0",
+	"version": "2.6.0",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {
@@ -14,7 +14,8 @@
 		"Other",
 		"C++",
 		"Better Compiler",
-		"OIer"
+		"OIer",
+		"Snippets"
 	],
 	"activationEvents": [
 		"onLanguage:cpp"
@@ -94,12 +95,12 @@
 			],
 			"cpp-compiler.contextSubmenu": [
 				{
-					"command": "cpp-compiler.runInternal",
+					"command": "cpp-compiler.runExternal",
 					"group": "cpp-run@1"
 				},
 				{
-					"command": "cpp-compiler.runExternal",
-					"group": "cpp-run@1"
+					"command": "cpp-compiler.runInternal",
+					"group": "cpp-run@2"
 				},
 				{
 					"command": "cpp-compiler.cppCompile",
