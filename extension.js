@@ -321,8 +321,8 @@ function runProgram(programPath, terminalType) {
         : programPath;
     const programDir = path.dirname(executablePath);
     const UseConsoleInfo = getConfig('useConsoleInfo') || false;
-    
-    // 使用文件特定的配置
+
+    // 文件特定配置
     const inputFile = getFileConfig(filePath, 'inputFile');
     const outputFile = getFileConfig(filePath, 'outputFile');
     const unFileInputFile = getFileConfig(filePath, 'unFileInputFile');
@@ -331,61 +331,34 @@ function runProgram(programPath, terminalType) {
     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
 
     let cdCommand, runCommand;
+
+    // ---------------- Windows ----------------
     if (process.platform === 'win32') {
         cdCommand = `cd /d "${programDir}"`;
+        runCommand = buildRunCommandWin(__dirname, executableName, {
+            UseConsoleInfo, useFileRedirect, useUnFileRedirect,
+            inputFile, outputFile, unFileInputFile, unFileOutputFile
+        });
 
-        // 如果同时启用了文件读写和反文件读写
-        if (useFileRedirect && useUnFileRedirect) {
-            if (UseConsoleInfo) {
-                // 使用 ConsoleInfoChangeFileIO.exe
-                const ConsoleInfoChangeFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoChangeFileIO.exe');
-                runCommand = `cmd /c "${ConsoleInfoChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}""`;
-            } else {
-                // 使用 ChangeFileIO.exe
-                const ChangeFileIOPath = path.join(__dirname, 'tools', 'ChangeFileIO.exe');
-                runCommand = `cmd /c "${ChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}""`;
-            }
-        } else if (useFileRedirect) {
-            if (UseConsoleInfo) {
-                // 使用 ConsoleInfoFileIO.exe
-                const ConsoleInfoFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoFileIO.exe');
-                runCommand = `cmd /c "${ConsoleInfoFileIOPath} "${executableName}.exe" "${inputFile}" "${outputFile}""`;
-            } else {
-                // 使用标准重定向
-                runCommand = `.\\"${executableName}.exe" < "${inputFile}" > "${outputFile}"`;
-            }
-        } else if (useUnFileRedirect) {
-            if (UseConsoleInfo) {
-                // 使用 ConsoleInfoUnFileIO.exe
-                const ConsoleInfoUnFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoUnFileIO.exe');
-                runCommand = `cmd /c "${ConsoleInfoUnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}""`;
-            } else {
-                // 使用 UnFileIO.exe
-                const UnFileIOPath = path.join(__dirname, 'tools', 'UnFileIO.exe');
-                runCommand = `cmd /c "${UnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}""`;
-            }
-        } else {
-            if (UseConsoleInfo) {
-                const ConsoleInfoPath = path.join(__dirname, 'tools', 'ConsoleInfo.exe');
-                runCommand = `cmd /c "${ConsoleInfoPath} "${executableName}.exe""`;
-            } else {
-                runCommand = `.\\"${executableName}.exe"`;
-            }
-        }
-    } else {
+        // ---------------- Linux ----------------
+    } else if (process.platform === 'linux') {
         cdCommand = `cd "${programDir}"`;
+        runCommand = buildRunCommandLinux(__dirname, executableName, {
+            UseConsoleInfo, useFileRedirect, useUnFileRedirect,
+            inputFile, outputFile, unFileInputFile, unFileOutputFile
+        });
 
+        // ---------------- macOS ----------------
+    } else if (process.platform === 'darwin') {
+        cdCommand = `cd "${programDir}"`;
         if (useFileRedirect) {
-            // Linux/Mac 使用标准重定向
-            runCommand = `./${executableName} < "${inputFile}" > "${outputFile}"`;
-        } else if (useUnFileRedirect) {
-            // Linux/Mac 使用标准重定向
-            runCommand = `./${executableName}`;
+            runCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executableName.replace(/"/g, '\\"')}' < '${inputFile.replace(/"/g, '\\"')}' > '${outputFile.replace(/"/g, '\\"')}'; read -p \\"按Enter键退出...\\""'`;
         } else {
-            runCommand = `./${executableName}`;
+            runCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executableName.replace(/"/g, '\\"')}'; read -p \\"按Enter键退出...\\""'`;
         }
     }
 
+    // ---------------- 执行逻辑 ----------------
     if (terminalType === 'internal') {
         RunTerminal.show();
         RunTerminal.sendText('^exit\x03');
@@ -393,57 +366,19 @@ function runProgram(programPath, terminalType) {
         RunTerminal.sendText(runCommand);
     } else {
         let terminalCommand;
+
         if (process.platform === 'win32') {
-            // 如果同时启用了文件读写和反文件读写
-            if (useFileRedirect && useUnFileRedirect) {
-                if (UseConsoleInfo) {
-                    // 使用 ConsoleInfoChangeFileIO.exe
-                    const ConsoleInfoChangeFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoChangeFileIO.exe');
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}" & echo. & pause"`;
-                } else {
-                    // 使用 ChangeFileIO.exe
-                    const ChangeFileIOPath = path.join(__dirname, 'tools', 'ChangeFileIO.exe');
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ChangeFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" "${inputFile}" "${outputFile}" & echo. & pause"`;
-                }
-            } else if (useFileRedirect) {
-                if (UseConsoleInfo) {
-                    // 使用 ConsoleInfoFileIO.exe
-                    const ConsoleInfoFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoFileIO.exe');
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoFileIOPath} "${executableName}.exe" "${inputFile}" "${outputFile}" & echo. & pause"`;
-                } else {
-                    // 使用标准重定向
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & .\\"${executableName}.exe" < "${inputFile}" > "${outputFile}" & echo. & pause"`;
-                }
-            } else if (useUnFileRedirect) {
-                if (UseConsoleInfo) {
-                    // 使用 ConsoleInfoUnFileIO.exe
-                    const ConsoleInfoUnFileIOPath = path.join(__dirname, 'tools', 'ConsoleInfoUnFileIO.exe');
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoUnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" & echo. & pause"`;
-                } else {
-                    // 使用 UnFileIO.exe
-                    const UnFileIOPath = path.join(__dirname, 'tools', 'UnFileIO.exe');
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${UnFileIOPath} "${executableName}.exe" "${unFileInputFile}" "${unFileOutputFile}" & echo. & pause"`;
-                }
-            } else {
-                if (UseConsoleInfo) {
-                    const ConsoleInfoPath = path.join(__dirname, 'tools', 'ConsoleInfo.exe');
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & ${ConsoleInfoPath} "${executableName}.exe" & echo. & pause"`;
-                } else {
-                    terminalCommand = `start "${executableName}.exe" cmd /c "${cdCommand} & .\\"${executableName}.exe" & echo. & pause"`;
-                }
-            }
-        } else if (process.platform === 'darwin') {
-            if (useFileRedirect) {
-                terminalCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executableName.replace(/"/g, '\\"')}' < '${inputFile.replace(/"/g, '\\"')}' > '${outputFile.replace(/"/g, '\\"')}'; read -p \"按Enter键退出...\""'`;
-            } else {
-                terminalCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executableName.replace(/"/g, '\\"')}'; read -p \"按Enter键退出...\""'`;
-            }
+            terminalCommand = buildTerminalCommandWin(cdCommand, __dirname, executableName, {
+                UseConsoleInfo, useFileRedirect, useUnFileRedirect,
+                inputFile, outputFile, unFileInputFile, unFileOutputFile
+            });
+        } else if (process.platform === 'linux') {
+            terminalCommand = buildTerminalCommandLinux(cdCommand, __dirname, executableName, {
+                UseConsoleInfo, useFileRedirect, useUnFileRedirect,
+                inputFile, outputFile, unFileInputFile, unFileOutputFile
+            });
         } else {
-            if (useFileRedirect) {
-                terminalCommand = `gnome-terminal -- bash -c "cd '${programDir}'; ./'${executableName}' < '${inputFile}' > '${outputFile}'; read -p '按Enter键退出...'"`;
-            } else {
-                terminalCommand = `gnome-terminal -- bash -c "cd '${programDir}'; ./'${executableName}'; read -p '按Enter键退出...'"`;
-            }
+            terminalCommand = runCommand; // macOS 已经直接是 osascript
         }
 
         exec(terminalCommand, (error) => {
@@ -452,6 +387,86 @@ function runProgram(programPath, terminalType) {
             }
         });
     }
+}
+
+// ---------------- Windows 构建命令 ----------------
+function buildRunCommandWin(baseDir, exeName, opt) {
+    if (opt.useFileRedirect && opt.useUnFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfoChangeFileIO.exe');
+            return `cmd /c "${p} "${exeName}.exe" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}""`;
+        } else {
+            const p = path.join(baseDir, 'tools', 'ChangeFileIO.exe');
+            return `cmd /c "${p} "${exeName}.exe" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}""`;
+        }
+    } else if (opt.useFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfoFileIO.exe');
+            return `cmd /c "${p} "${exeName}.exe" "${opt.inputFile}" "${opt.outputFile}""`;
+        } else {
+            return `.\\"${exeName}.exe" < "${opt.inputFile}" > "${opt.outputFile}"`;
+        }
+    } else if (opt.useUnFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfoUnFileIO.exe');
+            return `cmd /c "${p} "${exeName}.exe" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
+        } else {
+            const p = path.join(baseDir, 'tools', 'UnFileIO.exe');
+            return `cmd /c "${p} "${exeName}.exe" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
+        }
+    } else {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfo.exe');
+            return `cmd /c "${p} "${exeName}.exe""`;
+        } else {
+            return `.\\"${exeName}.exe"`;
+        }
+    }
+}
+
+function buildTerminalCommandWin(cdCommand, baseDir, exeName, opt) {
+    const runCmd = buildRunCommandWin(baseDir, exeName, opt);
+    return `start "${exeName}.exe" cmd /c "${cdCommand} & ${runCmd} & echo. & pause"`;
+}
+
+// ---------------- Linux 构建命令 ----------------
+function buildRunCommandLinux(baseDir, exeName, opt) {
+    if (opt.useFileRedirect && opt.useUnFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfoChangeFileIO');
+            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
+        } else {
+            const p = path.join(baseDir, 'tools', 'ChangeFileIO');
+            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
+        }
+    } else if (opt.useFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfoFileIO');
+            return `"${p}" "./${exeName}" "${opt.inputFile}" "${opt.outputFile}"`;
+        } else {
+            return `./${exeName} < "${opt.inputFile}" > "${opt.outputFile}"`;
+        }
+    } else if (opt.useUnFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfoUnFileIO');
+            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
+        } else {
+            const p = path.join(baseDir, 'tools', 'UnFileIO');
+            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
+        }
+    } else {
+        if (opt.UseConsoleInfo) {
+            const p = path.join(baseDir, 'tools', 'ConsoleInfo');
+            return `"${p}" "./${exeName}"`;
+        } else {
+            return `./${exeName}`;
+        }
+    }
+}
+
+function buildTerminalCommandLinux(cdCommand, baseDir, exeName, opt) {
+    const runCmd = buildRunCommandLinux(baseDir, exeName, opt);
+    return `gnome-terminal -- bash -c "${cdCommand}; ${runCmd}; echo; read -p '按Enter键退出...'"`;
 }
 
 // 侧边栏提供者类
@@ -487,7 +502,7 @@ class CppCompilerSidebarProvider {
         };
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
-        
+
 
         webviewView.onDidChangeVisibility(() => {
             // 当视图重新可见时更新按钮状态
@@ -667,11 +682,11 @@ class CppCompilerSidebarProvider {
 
     updateWebviewContent() {
         if (!sidebarPanel) return;
-    
+
         const compileOptions = getConfig('compileOptions') || '';
         const useStatic = getConfig('useStaticLinking') || false;
         const useConsoleInfo = getConfig('useConsoleInfo') || false;
-    
+
         // 获取当前文件的配置
         const editor = vscode.window.activeTextEditor;
         let inputFile = '';
@@ -685,7 +700,7 @@ class CppCompilerSidebarProvider {
         let card2open = true;
         let card3open = false;
         let filePath = null;
-    
+
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             filePath = editor.document.uri.fsPath;
             inputFile = getFileConfig(filePath, 'inputFile');
@@ -699,12 +714,12 @@ class CppCompilerSidebarProvider {
             card3open = getFileConfig(filePath, 'card3open');
             isCppFile = true;
         }
-        
+
         sidebarPanel.webview.postMessage({
             type: 'init',
             filePath: filePath
         });
-    
+
         sidebarPanel.webview.postMessage({
             type: 'updateConfig',
             compileOptions: compileOptions,
@@ -1184,12 +1199,12 @@ class CppCompilerSidebarProvider {
                     <div class="section-content" id="compileOptionsContent">
                         <div class="text-input-container">
                             <div class="compilerOptions-input-label">g++ 编译选项</div>
-                            <input type="text" id="compileOptions" value="${compileOptions.replace(/" /g, '&quot;' )}"
+                            <input type="text" id="compileOptions" value="${compileOptions.replace(/" /g, '&quot;')}"
                                 placeholder="输入编译选项，如：-std=c++17 -Wall">
                             <div class="save-status" id="compileOptionsStatus">✓ 已保存</div>
                         </div>
                         <div class="checkbox-container">
-                            <input type="checkbox" id="staticLinking" ${useStatic ? 'checked' : '' }>
+                            <input type="checkbox" id="staticLinking" ${useStatic ? 'checked' : ''}>
                             <label for="staticLinking">使用静态链接</label>
                         </div>
                     </div>
@@ -1210,9 +1225,9 @@ class CppCompilerSidebarProvider {
                             <button id="runExternal">外部终端运行</button>
                             <button id="onlyCompile">仅编译</button>
                         </div>
-                        ${process.platform === 'win32' ? `
+                        ${process.platform !== 'darwin' ? `
                         <div class="checkbox-container">
-                            <input type="checkbox" id="useConsoleInfo" ${useConsoleInfo ? 'checked' : '' }>
+                            <input type="checkbox" id="useConsoleInfo" ${useConsoleInfo ? 'checked' : ''}>
                             <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序</label>
                         </div>
                         ` : `
@@ -1251,7 +1266,7 @@ class CppCompilerSidebarProvider {
                             </div>
                             <div class="checkbox-container">
                                 <input type="checkbox" id="useFileRedirect">
-                                <label for="useFileRedirect" ${useFileRedirect ? 'checked' : '' }>启用文件读写</label>
+                                <label for="useFileRedirect" ${useFileRedirect ? 'checked' : ''}>启用文件读写</label>
                             </div>
                         </div>
         
@@ -1270,9 +1285,9 @@ class CppCompilerSidebarProvider {
                                     disabled>
                                 <div class="save-status" id="unFileOutputFileStatus">✓ 已保存</div>
                             </div>
-                            ${process.platform === 'win32' ? `
+                            ${process.platform !== 'darwin' ? `
                             <div class="checkbox-container">
-                                <input type="checkbox" id="useUnFileRedirect" ${useUnFileRedirect ? 'checked' : '' }>
+                                <input type="checkbox" id="useUnFileRedirect" ${useUnFileRedirect ? 'checked' : ''}>
                                 <label for="useUnFileRedirect">启用反文件读写</label>
                             </div>
                             ` : `
@@ -1450,7 +1465,7 @@ class CppCompilerSidebarProvider {
                         document.getElementById('runExternal').disabled = !data.enabled;
                         document.getElementById('onlyCompile').disabled = !data.enabled;
                         document.getElementById('useFileRedirect').disabled = !data.enabled;
-                        ${process.platform === 'win32' ? `document.getElementById('useUnFileRedirect').disabled = !data.enabled;` : ``}
+                        ${process.platform !== 'darwin' ? `document.getElementById('useUnFileRedirect').disabled = !data.enabled;` : ``}
         
                         // 更新文件输入框的状态
                         const inputs = [
@@ -1471,7 +1486,7 @@ class CppCompilerSidebarProvider {
                         });
                         
                         const list = [
-                            'runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect'${process.platform === 'win32' ? `, 'useUnFileRedirect'` : ``}
+                            'runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect'${process.platform !== 'darwin' ? `, 'useUnFileRedirect'` : ``}
                         ]
                         
                         list.forEach(id => {
@@ -1528,10 +1543,10 @@ class CppCompilerSidebarProvider {
 // 激活扩展
 function activate(context) {
     extensionContext = context; // 保存上下文
-    
+
     // 初始化终端
     RunTerminal = getTerminal();
-    
+
     // 注册侧边栏提供者
     const sidebarProvider = new CppCompilerSidebarProvider(context);
     context.subscriptions.push(
@@ -1554,7 +1569,7 @@ function activate(context) {
         'cpp-compiler.cppCompile',
         () => OnlyCompile(1)
     );
-    
+
     let OpenTerminalDisposable = vscode.commands.registerCommand(
         'extension.openInExternalTerminal',
         (uri) => {

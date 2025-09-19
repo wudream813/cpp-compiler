@@ -1,3 +1,5 @@
+# cpp-compiler v3.0.0
+> 全面支持 linux!!!
 # cpp-compiler v2.8.1
 > 修复勾选框意外拉伸bug
 # cpp-compiler v2.8.0
