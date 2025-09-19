@@ -955,12 +955,7 @@ class CppCompilerSidebarProvider {
         
                 button {
                     padding: 12px 18px;
-                    background: linear-gradient(
-                        120deg,
-                        color-mix(in srgb, var(--vscode-button-background) 50%, #8dfff9),
-                        var(--vscode-button-background),
-                        color-mix(in srgb, var(--vscode-button-background) 50%, #8dfff9)
-                    );
+                    background: color-mix(in srgb, var(--vscode-button-background) 70%, transparent);
                     border: 2px solid transparent;
                     color: var(--vscode-button-foreground);
                     border-radius: 10px;
