@@ -14,8 +14,7 @@
 		"Other",
 		"C++",
 		"Better Compiler",
-		"OIer",
-		"Snippets"
+		"OIer"
 	],
 	"activationEvents": [
 		"onLanguage:cpp"
