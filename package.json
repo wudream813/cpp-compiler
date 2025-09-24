@@ -1,7 +1,7 @@
 {
 	"name": "cpp-compiler",
 	"displayName": "C++ 编译器",
-	"version": "3.0.1",
+	"version": "3.1.0",
 	"publisher": "Wu_dream",
 	"description": "Wu_dream 制作的C++编译器",
 	"engines": {

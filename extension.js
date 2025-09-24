@@ -69,9 +69,8 @@ function md5(str) {
 
 function showText(content) {
     compileOutput.clear();
-    compileOutput.show(true);
     compileOutput.appendLine(content);
-    return compileOutput;
+    compileOutput.show(true);
 }
 
 function getTime() {
@@ -272,13 +271,12 @@ async function OnlyCompile(askUser) {
 
         // 执行编译命令
         return new Promise((resolve) => {
-            exec(compileCommand, (error) => {
+            exec(compileCommand, (error, _stdout, stderr) => {
                 if (error) {
                     showCommand(`程序 ${filePath} 编译失败，g++ 报错：${error.message}`);
                     compileStatus.text = '$(error) 编译失败';
                     compileStatus.show();
                     showText(error.message);
-
                     setTimeout(() => {
                         compileStatus.hide();
                     }, 5000);
@@ -288,17 +286,26 @@ async function OnlyCompile(askUser) {
                     const contentToHash = fileContent + compileOptions;
                     const currentHash = md5(contentToHash);
                     saveHashCache(filePath, compileOptions, currentHash);
-                    showCommand(`程序 ${filePath} 编译成功，编译命令：${compileCommand}`);
-                    compileStatus.text = '$(check) 编译成功';
+        
+                    if (stderr) {
+                        showCommand(`程序 ${filePath} 编译出现警告，编译命令：${compileCommand}`);
+                        compileStatus.text = '$(warning) 编译成功，但出现警告';
+                        showText(stderr);  // 用你的PushText显示警告内容
+                    } else {
+                        showCommand(`程序 ${filePath} 编译成功，编译命令：${compileCommand}`);
+                        compileStatus.text = '$(check) 编译成功';
+                    }
+        
                     compileStatus.show();
-
+        
                     setTimeout(() => {
                         compileStatus.hide();
                     }, 5000);
+        
                     resolve(1);
                 }
             });
-        });
+        });        
     }
 
     return 1;
