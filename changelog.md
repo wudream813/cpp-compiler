@@ -1,3 +1,5 @@
+# cpp-compiler v3.2.0
+> 正式在 vscode 拓展市场发布！
 # cpp-compiler v3.1.0
 > 支持查看警告
 # cpp-compiler v3.0.1

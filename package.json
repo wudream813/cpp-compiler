@@ -1,20 +1,21 @@
 {
-	"name": "cpp-compiler",
-	"displayName": "C++ 编译器",
-	"version": "3.1.0",
-	"publisher": "Wu_dream",
-	"description": "Wu_dream 制作的C++编译器",
+	"name": "dream-cpp-compiler",
+	"displayName": "Wu_Dream 的 C++ 编译器",
+	"version": "3.2.0",
+	"publisher": "wudream",
+	"description": "由 wudream 制作的 C++ 编译器加强版！",
 	"engines": {
 		"vscode": "^1.74.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/wudream813/cpp-compiler.git"
 	},
 	"license": "MIT",
 	"icon": "icon/icon.png",
 	"categories": [
 		"Programming Languages",
-		"Other",
-		"C++",
-		"Better Compiler",
-		"OIer"
+		"Other"
 	],
 	"activationEvents": [
 		"onLanguage:cpp"
