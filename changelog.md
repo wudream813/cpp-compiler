@@ -1,7 +1,8 @@
-# cpp-compiler v3.2.1
+# dream-cpp-compiler v3.2.1
 > 将编译选项对于每个程序独立
-# cpp-compiler v3.2.0
+# dream-cpp-compiler v3.2.0
 > 正式在 vscode 拓展市场发布！
+> 同时，将拓展名改为 `dream-cpp-compiler`（原因为拓展市场已有此 ID）
 # cpp-compiler v3.1.0
 > 支持查看警告
 # cpp-compiler v3.0.1
