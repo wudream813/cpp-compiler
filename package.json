@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "3.2.0",
+	"version": "3.2.1",
 	"publisher": "wudream",
 	"description": "由 wudream 制作的 C++ 编译器加强版！",
 	"engines": {
@@ -124,30 +124,23 @@
 		"keybindings": [
 			{
 				"command": "cpp-compiler.runExternal",
+				"when": "resourceLangId == cpp && resourceScheme == file",
 				"key": "f11"
 			},
 			{
 				"command": "cpp-compiler.runInternal",
+				"when": "resourceLangId == cpp && resourceScheme == file",
 				"key": "ctrl+f11"
 			},
 			{
 				"command": "cpp-compiler.cppCompile",
+				"when": "resourceLangId == cpp && resourceScheme == file",
 				"key": "alt+f11"
 			}
 		],
 		"configuration": {
 			"title": "C++ 编译器",
 			"properties": {
-				"cpp-compiler.compileOptions": {
-					"type": "string",
-					"default": "-std=c++14 -Wall -O2 -Wl,--stack=400000000",
-					"description": "用于编译C++文件的g++选项"
-				},
-				"cpp-compiler.useStaticLinking": {
-					"type": "boolean",
-					"default": false,
-					"description": "是否使用静态编译（添加 -static 选项），静态编译的程序可在其他同类系统上运行，无需依赖库，但文件体积较大"
-				},
 				"cpp-compiler.useConsoleInfo": {
 					"type": "boolean",
 					"default": false,

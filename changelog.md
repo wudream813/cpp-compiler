@@ -1,3 +1,5 @@
+# cpp-compiler v3.2.1
+> 将编译选项对于每个程序独立
 # cpp-compiler v3.2.0
 > 正式在 vscode 拓展市场发布！
 # cpp-compiler v3.1.0
