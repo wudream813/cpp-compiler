@@ -1,3 +1,5 @@
+# dream-cpp-compiler v3.3.0
+> 编译选项现在可以设置默认值了
 # dream-cpp-compiler v3.2.1
 > 将编译选项对于每个程序独立
 # dream-cpp-compiler v3.2.0

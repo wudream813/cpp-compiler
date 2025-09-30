@@ -173,8 +173,8 @@ function getFileConfig(filePath, key) {
             card1open: true,
             card2open: true,
             card3open: false,
-            compileOptions: '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
-            useStaticLinking: false
+            compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
+            useStaticLinking: getConfig('useStaticDefaultValue') || false
         };
     }
     return fileConfigs[filePath][key];
@@ -195,8 +195,8 @@ function setFileConfig(filePath, key, value) {
             card1open: true,
             card2open: true,
             card3open: false,
-            compileOptions: '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
-            useStaticLinking: false
+            compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
+            useStaticLinking: getConfig('useStaticDefaultValue') || false
         };
     }
     fileConfigs[filePath][key] = value;
@@ -683,8 +683,8 @@ class CppCompilerSidebarProvider {
         let card2open = true;
         let card3open = false;
         let filePath = null;
-        let compileOptions = '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000'
-        let useStatic = false;
+        let compileOptions = getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000'
+        let useStatic = getConfig('useStaticDefaultValue') || false;
 
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             filePath = editor.document.uri.fsPath;
@@ -732,8 +732,8 @@ class CppCompilerSidebarProvider {
         const editor = vscode.window.activeTextEditor;
         let useFileRedirect = false;
         let useUnFileRedirect = false;
-        let compileOptions = '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000';
-        let useStatic = false;
+        let compileOptions = getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000';
+        let useStatic = getConfig('useStaticDefaultValue') || false;
 
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             const filePath = editor.document.uri.fsPath;

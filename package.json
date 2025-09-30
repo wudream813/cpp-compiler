@@ -125,7 +125,7 @@
 			{
 				"command": "cpp-compiler.runExternal",
 				"when": "resourceLangId == cpp && resourceScheme == file",
-				"key": "f11"
+				"key": "shift+f11"
 			},
 			{
 				"command": "cpp-compiler.runInternal",
@@ -150,6 +150,16 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Hash 缓存存放的位置，若取消勾选，则以文件存储于临时文件夹。否则将存在于内存中，关闭 vscode 窗口就会清除"
+				},
+				"cpp-compiler.CompileDefaultValue": {
+					"type": "string",
+					"default": "-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000",
+					"description": "编译选项默认值"
+				},
+				"cpp-compiler.useStaticDefaultValue": {
+					"type": "boolean",
+					"default": false,
+					"description": "开启静态编译默认值"
 				}
 			}
 		}
