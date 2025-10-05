@@ -1,9 +1,16 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "3.2.1",
+	"version": "3.4.0",
 	"publisher": "wudream",
-	"description": "由 wudream 制作的 C++ 编译器加强版！",
+	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
+	"keywords": [
+		"cpp",
+		"c++",
+		"compiler",
+		"run",
+		"compile"
+	],
 	"engines": {
 		"vscode": "^1.74.0"
 	},
@@ -11,6 +18,24 @@
 		"type": "git",
 		"url": "https://github.com/wudream813/cpp-compiler.git"
 	},
+	"badges": [
+		{
+			"url": "https://img.shields.io/github/stars/wudream813/cpp-compiler?style=for-the-badge&color=551A8B&link=https://github.com/wudream813/cpp-compiler",
+			"description": "给我点一个 star"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/v/wudream.dream-cpp-compiler?style=for-the-badge&color=be2128&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展版本"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/i/wudream.dream-cpp-compiler?style=for-the-badge&color=249847&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展安装量"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/d/wudream.dream-cpp-compiler?style=for-the-badge&color=064f8c&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展下载量"
+		}
+	],
 	"license": "MIT",
 	"icon": "icon/icon.png",
 	"categories": [
@@ -125,7 +150,7 @@
 			{
 				"command": "cpp-compiler.runExternal",
 				"when": "resourceLangId == cpp && resourceScheme == file",
-				"key": "shift+f11"
+				"key": "f11"
 			},
 			{
 				"command": "cpp-compiler.runInternal",
@@ -141,22 +166,22 @@
 		"configuration": {
 			"title": "C++ 编译器",
 			"properties": {
-				"cpp-compiler.useConsoleInfo": {
+				"dream-cpp-compiler.useConsoleInfo": {
 					"type": "boolean",
 					"default": false,
 					"description": "是否使用 ConsoleInfo.exe 来显示程序运行信息（警告：此选项仅可在 windows 系统生效）"
 				},
-				"cpp-compiler.HashCacheInExtension": {
+				"dream-cpp-compiler.HashCacheInExtension": {
 					"type": "boolean",
 					"default": false,
 					"description": "Hash 缓存存放的位置，若取消勾选，则以文件存储于临时文件夹。否则将存在于内存中，关闭 vscode 窗口就会清除"
 				},
-				"cpp-compiler.CompileDefaultValue": {
+				"dream-cpp-compiler.CompileDefaultValue": {
 					"type": "string",
 					"default": "-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000",
 					"description": "编译选项默认值"
 				},
-				"cpp-compiler.useStaticDefaultValue": {
+				"dream-cpp-compiler.useStaticDefaultValue": {
 					"type": "boolean",
 					"default": false,
 					"description": "开启静态编译默认值"

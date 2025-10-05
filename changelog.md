@@ -1,5 +1,17 @@
+# dream-cpp-compiler v3.4.0
+> 修复了 ConsoleInfo 的 bug
+> readme.md 美化了！
 # dream-cpp-compiler v3.3.0
-> 编译选项现在可以设置默认值了
+> 新增了编译默认选项，修复了consoleInfo的一些 bug。
+> 添加更多关键词，你可以搜：
+> - `cpp`
+> - `c++`
+> - `compiler`
+> - `run`
+> - `compile`
+> - `dream-cpp-compiler`
+> - `Wu_Dream 的 C++ 编译器`
+> 或 [vscode 拓展市场](https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler)来找到我的拓展
 # dream-cpp-compiler v3.2.1
 > 将编译选项对于每个程序独立
 # dream-cpp-compiler v3.2.0
