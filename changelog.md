@@ -1,8 +1,15 @@
+# dream-cpp-compiler v3.5.0
+> 现在支持设置文件输入输出路径默认值
+> readme.md 添加 To do
+> 修复了 v3.4.1 的重大不同步 bug!
+# dream-cpp-compiler v3.4.1
+> 更改了输出通道的显示方式，同步部分设置名
+> **警告！此版本应为修改名称，导致出现设置不同步。因此此版本已被弃用，请使用 v3.5.0**
 # dream-cpp-compiler v3.4.0
 > 修复了 ConsoleInfo 的 bug
 > readme.md 美化了！
 # dream-cpp-compiler v3.3.0
-> 新增了编译默认选项，修复了consoleInfo的一些 bug。
+> 新增了编译默认选项，修复了 ConsoleInfo 的一些 bug。
 > 添加更多关键词，你可以搜：
 > - `cpp`
 > - `c++`
@@ -26,7 +33,7 @@
 # cpp-compiler v2.8.1
 > 修复勾选框意外拉伸bug
 # cpp-compiler v2.8.0
-> 应 FlowerRed 老师所说，删去臃肿的一些 UI，改动了一些图标
+> 删去臃肿的一些 UI，改动了一些图标
 # cpp-compiler v2.7.0
 > 删除代码片段功能，修复了页面切换更新不同步 bug，UI 稍改，做了一个好看点的图片
 # cpp-compiler v2.6.0

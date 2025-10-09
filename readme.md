@@ -1,4 +1,4 @@
-<h1 align=center> <img align=center width=80 src="icon/icon.png" alt="Dream Logo"/></h1>
+<h1 align=center> <img align=center width=80 src="https://img.shields.io/visual-studio-marketplace/v/wudream.dream-cpp-compiler?style=for-the-badge&color=be2128&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler" alt="Dream Logo"/></h1>
 
 <p align=center>让你方便快速的在 vscode 中编译运行 C++ 文件</p>
 
@@ -98,4 +98,13 @@
  警告
 </summary><br/>
 <strong>由于编译器设置的特殊性，因此只在用户设置中生效，工作区的设置没有任何用处</strong>
+</details>
+
+<details>
+<summary>
+ To do
+</summary><br/>
+1. 支持编译 C 文件
+2. 支持 debug
+3. 支持设置编译器
 </details>

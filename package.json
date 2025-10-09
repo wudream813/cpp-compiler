@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "3.4.0",
+	"version": "3.5.0",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -16,11 +16,11 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/wudream813/cpp-compiler.git"
+		"url": "https://github.com/wudream813/dream-cpp-compiler.git"
 	},
 	"badges": [
 		{
-			"url": "https://img.shields.io/github/stars/wudream813/cpp-compiler?style=for-the-badge&color=551A8B&link=https://github.com/wudream813/cpp-compiler",
+			"url": "https://img.shields.io/github/stars/wudream813/dream-cpp-compiler?style=for-the-badge&color=551A8B&link=https://github.com/wudream813/dream-cpp-compiler",
 			"description": "给我点一个 star"
 		},
 		{
@@ -50,14 +50,14 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "cpp-compiler-sidebar",
+					"id": "dream-cpp-compiler-sidebar",
 					"title": "C++ 编译器",
 					"icon": "icon/sidebar-icon.svg"
 				}
 			]
 		},
 		"views": {
-			"cpp-compiler-sidebar": [
+			"dream-cpp-compiler-sidebar": [
 				{
 					"type": "webview",
 					"id": "cppCompilerSidebar",
@@ -69,22 +69,22 @@
 		},
 		"commands": [
 			{
-				"command": "cpp-compiler.contextSubmenu",
-				"title": "cpp-compiler",
+				"command": "dream-cpp-compiler.contextSubmenu",
+				"title": "dream-cpp-compiler",
 				"icon": "$(code)"
 			},
 			{
-				"command": "cpp-compiler.runInternal",
+				"command": "dream-cpp-compiler.runInternal",
 				"title": "内置终端运行",
 				"icon": "$(play)"
 			},
 			{
-				"command": "cpp-compiler.runExternal",
+				"command": "dream-cpp-compiler.runExternal",
 				"title": "外部终端运行",
 				"icon": "$(terminal)"
 			},
 			{
-				"command": "cpp-compiler.cppCompile",
+				"command": "dream-cpp-compiler.cppCompile",
 				"title": "仅编译",
 				"icon": "$(gear)"
 			},
@@ -96,39 +96,39 @@
 		"menus": {
 			"editor/title/run": [
 				{
-					"command": "cpp-compiler.runInternal",
+					"command": "dream-cpp-compiler.runInternal",
 					"when": "resourceLangId == cpp",
-					"group": "cpp-compiler@1"
+					"group": "dream-cpp-compiler@1"
 				},
 				{
-					"command": "cpp-compiler.runExternal",
+					"command": "dream-cpp-compiler.runExternal",
 					"when": "resourceLangId == cpp",
-					"group": "cpp-compiler@2"
+					"group": "dream-cpp-compiler@2"
 				},
 				{
-					"command": "cpp-compiler.cppCompile",
+					"command": "dream-cpp-compiler.cppCompile",
 					"when": "resourceLangId == cpp",
-					"group": "cpp-compiler@3"
+					"group": "dream-cpp-compiler@3"
 				}
 			],
 			"editor/context": [
 				{
-					"submenu": "cpp-compiler.contextSubmenu",
+					"submenu": "dream-cpp-compiler.contextSubmenu",
 					"when": "resourceLangId == cpp && resourceScheme == file",
 					"group": "navigation"
 				}
 			],
-			"cpp-compiler.contextSubmenu": [
+			"dream-cpp-compiler.contextSubmenu": [
 				{
-					"command": "cpp-compiler.runExternal",
+					"command": "dream-cpp-compiler.runExternal",
 					"group": "cpp-run@1"
 				},
 				{
-					"command": "cpp-compiler.runInternal",
+					"command": "dream-cpp-compiler.runInternal",
 					"group": "cpp-run@2"
 				},
 				{
-					"command": "cpp-compiler.cppCompile",
+					"command": "dream-cpp-compiler.cppCompile",
 					"group": "cpp-compile@1"
 				}
 			],
@@ -142,29 +142,29 @@
 		},
 		"submenus": [
 			{
-				"id": "cpp-compiler.contextSubmenu",
+				"id": "dream-cpp-compiler.contextSubmenu",
 				"label": "c++编译器"
 			}
 		],
 		"keybindings": [
 			{
-				"command": "cpp-compiler.runExternal",
+				"command": "dream-cpp-compiler.runExternal",
 				"when": "resourceLangId == cpp && resourceScheme == file",
 				"key": "f11"
 			},
 			{
-				"command": "cpp-compiler.runInternal",
+				"command": "dream-cpp-compiler.runInternal",
 				"when": "resourceLangId == cpp && resourceScheme == file",
 				"key": "ctrl+f11"
 			},
 			{
-				"command": "cpp-compiler.cppCompile",
+				"command": "dream-cpp-compiler.cppCompile",
 				"when": "resourceLangId == cpp && resourceScheme == file",
 				"key": "alt+f11"
 			}
 		],
 		"configuration": {
-			"title": "C++ 编译器",
+			"title": "dream C++ 编译器",
 			"properties": {
 				"dream-cpp-compiler.useConsoleInfo": {
 					"type": "boolean",
@@ -185,6 +185,26 @@
 					"type": "boolean",
 					"default": false,
 					"description": "开启静态编译默认值"
+				},
+				"dream-cpp-compiler.FileInputDefaultValue": {
+					"type": "string",
+					"default": "{baseName}.in",
+					"description": "文件读写中默认输入文件名（你可以使用 {baseName} 占位符来作为当前文件的无拓展名形式）"
+				},
+				"dream-cpp-compiler.FileOutputDefaultValue": {
+					"type": "string",
+					"default": "{baseName}.out",
+					"description": "文件读写中默认输出文件名（你可以使用 {baseName} 占位符来作为当前文件的无拓展名形式）"
+				},
+				"dream-cpp-compiler.UnFileInputDefaultValue": {
+					"type": "string",
+					"default": "{baseName}.in",
+					"description": "反文件读写中默认输入文件名（你可以使用 {baseName} 占位符来作为当前文件的无拓展名形式）"
+				},
+				"dream-cpp-compiler.UnFileOutputDefaultValue": {
+					"type": "string",
+					"default": "{baseName}.out",
+					"description": "反文件读写中默认输出文件名（你可以使用 {baseName} 占位符来作为当前文件的无拓展名形式）"
 				}
 			}
 		}
