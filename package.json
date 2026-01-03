@@ -1,0 +1,255 @@
+{
+	"name": "dream-cpp-compiler",
+	"displayName": "Wu_Dream 的 C++ 编译器",
+	"version": "6.0.0",
+	"publisher": "wudream",
+	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
+	"keywords": [
+		"cpp",
+		"c++",
+		"compiler",
+		"run",
+		"compile"
+	],
+	"engines": {
+		"vscode": "^1.60.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/wudream813/cpp-compiler.git"
+	},
+	"badges": [
+		{
+			"url": "https://img.shields.io/github/stars/wudream813/cpp-compiler?style=for-the-badge&color=551A8B&link=https://github.com/wudream813/dream-cpp-compiler",
+			"description": "给我点一个 star"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/v/wudream.dream-cpp-compiler?style=for-the-badge&color=be2128&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展版本"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/i/wudream.dream-cpp-compiler?style=for-the-badge&color=249847&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展安装量"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/d/wudream.dream-cpp-compiler?style=for-the-badge&color=064f8c&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展下载量"
+		},
+		{
+			"url": "https://img.shields.io/visual-studio-marketplace/stars/wudream.dream-cpp-compiler.cpptools?style=flat-square&color=9400d3&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"description": "拓展评分"
+		}
+	],
+	"license": "MIT",
+	"icon": "icon/icon.png",
+	"categories": [
+		"Programming Languages",
+		"Other"
+	],
+	"activationEvents": [
+		"onLanguage:cpp"
+	],
+	"main": "./extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "dream-cpp-compiler-sidebar",
+					"title": "C++ 编译器",
+					"icon": "icon/sidebar-icon.svg"
+				}
+			]
+		},
+		"views": {
+			"dream-cpp-compiler-sidebar": [
+				{
+					"type": "webview",
+					"id": "cppCompilerSidebar",
+					"name": "编译控制",
+					"icon": "icon/sidebar-icon.svg",
+					"contextualTitle": "C++编译控制"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "dream-cpp-compiler.contextSubmenu",
+				"title": "dream-cpp-compiler"
+			},
+			{
+				"command": "dream-cpp-compiler.runInternal",
+				"title": "内置终端运行",
+				"icon": "$(play)"
+			},
+			{
+				"command": "dream-cpp-compiler.runExternal",
+				"title": "外部终端运行",
+				"icon": "$(terminal)"
+			},
+			{
+				"command": "dream-cpp-compiler.cppCompile",
+				"title": "仅编译",
+				"icon": "$(gear)"
+			},
+			{
+				"command": "dream-cpp-compiler.openInExternalTerminal",
+				"title": "在外部终端打开"
+			}
+		],
+		"menus": {
+			"editor/title/run": [
+				{
+					"command": "dream-cpp-compiler.runInternal",
+					"when": "resourceLangId == cpp",
+					"group": "dream-cpp-compiler@1"
+				},
+				{
+					"command": "dream-cpp-compiler.runExternal",
+					"when": "resourceLangId == cpp",
+					"group": "dream-cpp-compiler@2"
+				},
+				{
+					"command": "dream-cpp-compiler.cppCompile",
+					"when": "resourceLangId == cpp",
+					"group": "dream-cpp-compiler@3"
+				}
+			],
+			"editor/context": [
+				{
+					"submenu": "dream-cpp-compiler.contextSubmenu",
+					"when": "resourceLangId == cpp && resourceScheme == file",
+					"group": "navigation"
+				}
+			],
+			"dream-cpp-compiler.contextSubmenu": [
+				{
+					"command": "dream-cpp-compiler.runExternal",
+					"group": "cpp-run@1"
+				},
+				{
+					"command": "dream-cpp-compiler.runInternal",
+					"group": "cpp-run@2"
+				},
+				{
+					"command": "dream-cpp-compiler.cppCompile",
+					"group": "cpp-compile@1"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "dream-cpp-compiler.openInExternalTerminal",
+					"group": "navigation",
+					"when": "explorerResourceIsFolder"
+				}
+			]
+		},
+		"submenus": [
+			{
+				"id": "dream-cpp-compiler.contextSubmenu",
+				"label": "c++编译器"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "dream-cpp-compiler.runExternal",
+				"when": "resourceLangId == cpp && resourceScheme == file",
+				"key": "shift+f11"
+			},
+			{
+				"command": "dream-cpp-compiler.runInternal",
+				"when": "resourceLangId == cpp && resourceScheme == file",
+				"key": "ctrl+f11"
+			},
+			{
+				"command": "dream-cpp-compiler.cppCompile",
+				"when": "resourceLangId == cpp && resourceScheme == file",
+				"key": "alt+f11"
+			}
+		],
+		"configuration": {
+			"title": "dream cpp compiler",
+			"properties": {
+				"dream-cpp-compiler.useConsoleInfo": {
+					"type": "boolean",
+					"default": false,
+					"description": "是否使用 ConsoleInfo.exe 来显示程序运行信息（警告：此选项仅可在 windows 系统生效）"
+				},
+				"dream-cpp-compiler.CompileDefaultValue": {
+					"type": "string",
+					"default": "-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000",
+					"description": "编译选项默认值"
+				},
+				"dream-cpp-compiler.useStaticDefaultValue": {
+					"type": "boolean",
+					"default": false,
+					"description": "开启静态编译默认值"
+				},
+				"dream-cpp-compiler.FileInputDefaultValue": {
+					"type": "string",
+					"default": "{base}.in",
+					"description": "文件读写中默认输入文件名（你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var）"
+				},
+				"dream-cpp-compiler.FileOutputDefaultValue": {
+					"type": "string",
+					"default": "{base}.out",
+					"description": "文件读写中默认输出文件名（你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var）"
+				},
+				"dream-cpp-compiler.UnFileInputDefaultValue": {
+					"type": "string",
+					"default": "{base}.in",
+					"description": "反文件读写中默认输入文件名（你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var）"
+				},
+				"dream-cpp-compiler.UnFileOutputDefaultValue": {
+					"type": "string",
+					"default": "{base}.out",
+					"description": "反文件读写中默认输出文件名（你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var）"
+				},
+				"dream-cpp-compiler.moreCommandDefaultValue": {
+					"type": "string",
+					"default": "",
+					"description": "运行后额外命令默认值（你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var）"
+				},
+				"dream-cpp-compiler.customVariableDefaultValue": {
+					"type": "string",
+					"default": "",
+					"description": "自定义变量默认值"
+				},
+				"dream-cpp-compiler.useFileRedirectDefaultValue": {
+					"type": "boolean",
+					"default": false,
+					"description": "是否默认开启文件读写"
+				},
+				"dream-cpp-compiler.useUnFileRedirectDefaultValue": {
+					"type": "boolean",
+					"default": false,
+					"description": "是否默认开启反文件读写"
+				},
+				"dream-cpp-compiler.compileOptionsCardDefaultStatus": {
+					"type": "boolean",
+					"default": true,
+					"description": "\"编译设置\"区块是否默认打开"
+				},
+				"dream-cpp-compiler.runControlCardDefaultStatus": {
+					"type": "boolean",
+					"default": true,
+					"description": "\"运行控制\"区块是否默认打开"
+				},
+				"dream-cpp-compiler.advancedCardDefaultStatus": {
+					"type": "boolean",
+					"default": false,
+					"description": "\"高级选项\"区块是否默认打开"
+				},
+				"dream-cpp-compiler.fileOperationsCardDefaultStatus": {
+					"type": "boolean",
+					"default": false,
+					"description": "\"文件读写操作\"区块是否默认打开"
+				},
+				"dream-cpp-compiler.compilerPath": {
+					"type": "string",
+					"default": "g++",
+					"description": "编译器位置，如\"C:\\mingw64\\bin\\g++.exe\"或\"/usr/bin/g++\""
+				}
+			}
+		}
+	}
+}
