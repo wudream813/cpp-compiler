@@ -46,8 +46,8 @@ function makeTerminal() {
 }
 
 function getTempDir() {
-    const TempDir = path.join(os.tmpdir(), '.dream-cpp-compiler');
-    await fs.mkdir(TempDir, { recursive: true });
+    const TempDir = path.join(os.tmpdir(), 'dream-cpp-compiler');
+    fs.mkdirSync(path.join(TempDir, 'Module'), { recursive: true });
     return TempDir;
 }
 
@@ -119,13 +119,13 @@ function needsRecompile(filePath, compileOptions, compilerPath) {
     try {
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const currentHash = md5(fileContent);
-        const cachedData = getCachedHash(`${filePath}|${compileOptions}|${compilerPath}`, compileOptions);
+        const cachedData = getCachedHash(filePath);
         const executablePath = GetExePath(filePath);
 
         if (!cachedData) return true;
         if (!fs.existsSync(executablePath)) return true;
 
-        return currentHash !== cachedData;
+        return cachedData !== `${currentHash}|${compileOptions}|${compilerPath}`;
     } catch (err) {
         ShowError(`检查是否需要重新编译时出错:${err.message}`);
         return true;
@@ -209,20 +209,29 @@ function checkFilePath() {
     return document.uri.fsPath;
 }
 
-async function CompileModule(filePath, executablePath) {
-    if (fs.existsSync(executablePath)) {
+async function CompileModule(filePath, ModuleName, executablePath, compilerOption) {
+    const compilerPath = getConfig('compilerPath') || 'g++';
+    const compileCommand = `"${compilerPath}" "${filePath}" ${compilerOption} -static -o "${executablePath}"`;
+    ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${compileCommand}\n`]);
+
+    if (await fs.existsSync(executablePath)) {
+        ShowInfo(`模块：${ModuleName} 曾被编译，无需再次编译`);
         return 1;
     }
-    const compilerPath = getConfig('compilerPath') || 'g++';
-    return new Promise((resolve) => {
-        exec(`"${compilerPath}" "${filePath}" -static -o "${executablePath}"`, (error) => {
-            if (error) {
-                vscode.window.showErrorMessage(`编译 ${filePath} 对应功能失败！`);
-                showErrors([`编译 ${filePath} 对应功能失败！`, `错误原因：\n${error.message}`]);
-                resolve(0);
-            } else {
-                resolve(1);
-            }
+
+    return await vscode.window.withProgress({location: vscode.ProgressLocation.Notification, title: `模块 ${ModuleName} 正在编译...`}, async (progress) => {
+        return new Promise((resolve) => {
+            exec(compileCommand, (error) => {
+                if (error) {
+                    ShowErrors([`编译 ${ModuleName} 对应模块失败！`, `错误原因：\n${error.message}`]);
+                    showErrorText(error.message);
+                    vscode.window.showErrorMessage(`编译 ${ModuleName} 模块失败！`);
+                    resolve(0);
+                } else {
+                    ShowInfo(`模块：${ModuleName} 编译成功`);
+                    resolve(1);
+                }
+            });
         });
     });
 }
@@ -292,7 +301,7 @@ async function OnlyCompile(askUser, filePath) {
                     } else {
                         const fileContent = fs.readFileSync(filePath, 'utf8');
                         const currentHash = md5(fileContent);
-                        saveHashCache(`${filePath}|${compileOptions}|${compilerPath}`, currentHash);
+                        saveHashCache(filePath, `${currentHash}|${compileOptions}|${compilerPath}`);
 
                         if (stderr) {
                             ShowWarns([`程序 ${filePath} 编译出现警告`, `编译命令：${compileCommand}`, `编译器警告：\n${stderr}`]);
@@ -304,7 +313,7 @@ async function OnlyCompile(askUser, filePath) {
                                 }
                             });
                         } else {
-                            ShowInfos([`程序 ${filePath} 编译成功`, `编译命令：${compileCommand}`, `未出现警告与错误`]);
+                            ShowInfos([`程序 ${filePath} 编译成功`, `编译命令：${compileCommand}`, `未出现警告与错误\n`]);
                             compileStatus.text = '$(check) 编译成功';
 
                             setTimeout(() => {
@@ -354,12 +363,12 @@ async function compileAndRun(terminalType) {
     const FilePath = checkFilePath();
     const result = await OnlyCompile(0, FilePath);
     if (result) {
-        runProgram(FilePath, terminalType);
+        await runProgram(FilePath, terminalType);
     }
 }
 
 // 运行程序
-function runProgram(filePath, terminalType) {
+async function runProgram(filePath, terminalType) {
     const executablePath = GetExePath(filePath);
     const programDir = path.dirname(executablePath);
     const UseConsoleInfo = getConfig('useConsoleInfo') || false;
@@ -372,6 +381,7 @@ function runProgram(filePath, terminalType) {
     const unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile').replace(/\{var\}/g, customVariable);
     const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+    const toolPath = path.join(__dirname, 'tools');
     let moreCommand = getFileConfig(filePath, 'moreCommand').replace(/\{var\}/g, customVariable);
 
     let cdCommand, runCommand;
@@ -379,20 +389,18 @@ function runProgram(filePath, terminalType) {
     // ---------------- Windows ----------------
     if (process.platform === 'win32') {
         cdCommand = `cd /d "${programDir}"`;
-        runCommand = buildRunCommandWin(__dirname, executablePath, {
+        runCommand = await buildRunCommandWin(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
-        if(moreCommand)moreCommand += '&';
 
         // ---------------- Linux ----------------
     } else if (process.platform === 'linux') {
         cdCommand = `cd "${programDir}"`;
-        runCommand = buildRunCommandLinux(__dirname, executablePath, {
+        runCommand = await buildRunCommandLinux(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
-        if(moreCommand)moreCommand += ';';
 
         // ---------------- macOS ----------------
     } else if (process.platform === 'darwin') {
@@ -402,7 +410,10 @@ function runProgram(filePath, terminalType) {
         } else {
             runCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executablePath.replace(/"/g, '\\"')}'; read -p \\"按Enter键退出...\\""'`;
         }
-        if(moreCommand)moreCommand += ';';
+    }
+
+    if(!runCommand) {
+        return;
     }
 
     // ---------------- 执行逻辑 ----------------
@@ -416,53 +427,49 @@ function runProgram(filePath, terminalType) {
         }
 
         RunTerminal.show();
-        RunTerminal.sendText('\x03^C');
+        RunTerminal.sendText('^C\x03');
         RunTerminal.sendText(cdCommand);
+        if(moreCommand)runCommand += ` && ${moreCommand}`;
         RunTerminal.sendText(runCommand);
     } else {
         let terminalCommand;
 
         if (process.platform === 'win32') {
-            terminalCommand = buildTerminalCommandWin(cdCommand, __dirname, executablePath, moreCommand, {
-                UseConsoleInfo, useFileRedirect, useUnFileRedirect,
-                inputFile, outputFile, unFileInputFile, unFileOutputFile
-            });
+            terminalCommand = await buildTerminalCommandWin(cdCommand, runCommand, moreCommand);
         } else if (process.platform === 'linux') {
-            terminalCommand = buildTerminalCommandLinux(cdCommand, __dirname, executablePath, moreCommand, {
-                UseConsoleInfo, useFileRedirect, useUnFileRedirect,
-                inputFile, outputFile, unFileInputFile, unFileOutputFile
-            });
+            terminalCommand = await buildTerminalCommandLinux(cdCommand, runCommand, moreCommand);
         } else {
             terminalCommand = runCommand; // macOS 已经直接是 osascript
         }
 
-        if(!terminalCommand) {
-            return;
-        }
+        ShowInfo(`外部终端命令: ${terminalCommand}`);
 
         exec(terminalCommand, (error) => {
             if (error) {
-                vscode.window.showErrorMessage(`打开外部终端失败: ${error.message}`);
+                vscode.window.showErrorMessage("打开外部终端失败！");
+                ShowError(`打开外部终端失败！错误原因：${error.message}`);
+            }else{
+                ShowInfo(`程序 ${filePath} 运行已结束`);
             }
         });
     }
 }
 
 // ---------------- Windows 构建命令 ----------------
-function buildRunCommandWin(baseDir, exeName, opt) {
+async function buildRunCommandWin(baseDir, exeName, opt) {
     if (opt.useFileRedirect && opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
-            const executablePath = path.join(getTempDir(), 'windows', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), executablePath);
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
             if(!result){
                 return null;
             }
             return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}""`;
         } else {
             const ModuleName = 'ChangeFileIO';
-            const executablePath = path.join(getTempDir(), 'windows', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), executablePath);
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result){
                 return null;
             }
@@ -470,72 +477,122 @@ function buildRunCommandWin(baseDir, exeName, opt) {
         }
     } else if (opt.useFileRedirect) {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfoFileIO.exe');
-            return `cmd /c "${p} "${exeName}" "${opt.inputFile}" "${opt.outputFile}""`;
+            const ModuleName = 'ConsoleInfoFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            if(!result){
+                return null;
+            }
+            return `cmd /c "${executablePath} "${exeName}" "${opt.inputFile}" "${opt.outputFile}""`;
         } else {
             return `cmd /c ""${exeName}" < "${opt.inputFile}" > "${opt.outputFile}""`;
         }
     } else if (opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfoUnFileIO.exe');
-            return `cmd /c "${p} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
+            const ModuleName = 'ConsoleInfoUnFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            if(!result){
+                return null;
+            }
+            return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         } else {
-            const p = path.join(baseDir, 'tools', 'UnFileIO.exe');
-            return `cmd /c "${p} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
+            const ModuleName = 'UnFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         }
     } else {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfo.exe');
-            return `cmd /c "${p} "${exeName}""`;
+            const ModuleName = 'ConsoleInfo';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            if(!result){
+                return null;
+            }
+            return `cmd /c "${executablePath} "${exeName}""`;
         } else {
             return `cmd /c "${exeName}"`;
         }
     }
 }
 
-function buildTerminalCommandWin(cdCommand, baseDir, exeName, moreCommand, opt) {
-    const runCmd = buildRunCommandWin(baseDir, exeName, opt);
-    return `start "${exeName}" cmd /c "${cdCommand} & ${runCmd} & echo. & ${moreCommand} pause"`;
+async function buildTerminalCommandWin(cdCommand, runCommand, moreCommand) {
+    if(moreCommand)return `start "${exeName}" cmd /c "${cdCommand} & ${runCommand} & echo. & ${moreCommand} & pause"`;
+    return `start "${exeName}" cmd /c "${cdCommand} & ${runCommand} & echo. & pause"`;
 }
 
 // ---------------- Linux 构建命令 ----------------
-function buildRunCommandLinux(baseDir, exeName, opt) {
+async function buildRunCommandLinux(baseDir, exeName, opt) {
     if (opt.useFileRedirect && opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfoChangeFileIO');
-            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
+            const ModuleName = 'ConsoleInfoChangeFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
         } else {
-            const p = path.join(baseDir, 'tools', 'ChangeFileIO');
-            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
+            const ModuleName = 'ChangeFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
         }
     } else if (opt.useFileRedirect) {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfoFileIO');
-            return `"${p}" "./${exeName}" "${opt.inputFile}" "${opt.outputFile}"`;
+            const ModuleName = 'ConsoleInfoFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"`;
         } else {
-            return `./${exeName} < "${opt.inputFile}" > "${opt.outputFile}"`;
+            return `${exeName} < "${opt.inputFile}" > "${opt.outputFile}"`;
         }
     } else if (opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfoUnFileIO');
-            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
+            const ModuleName = 'ConsoleInfoUnFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
         } else {
-            const p = path.join(baseDir, 'tools', 'UnFileIO');
-            return `"${p}" "./${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
+            const ModuleName = 'UnFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
         }
     } else {
         if (opt.UseConsoleInfo) {
-            const p = path.join(baseDir, 'tools', 'ConsoleInfo');
-            return `"${p}" "./${exeName}"`;
+            const ModuleName = 'ConsoleInfo';
+            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result){
+                return null;
+            }
+            return `"${executablePath}" "${exeName}"`;
         } else {
-            return `./${exeName}`;
+            return `${exeName}`;
         }
     }
 }
 
-function buildTerminalCommandLinux(cdCommand, baseDir, exeName, moreCommand, opt) {
-    const runCmd = buildRunCommandLinux(baseDir, exeName, opt);
-    return `gnome-terminal -- bash -c "${cdCommand}; ${runCmd}; echo; ${moreCommand} read -p '按Enter键退出...'"`;
+async function buildTerminalCommandLinux(cdCommand, runCommand, moreCommand) {
+    if(moreCommand)return `gnome-terminal -- bash -c "${cdCommand}; ${runCommand}; echo; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
+    return `gnome-terminal -- bash -c "${cdCommand}; ${runCommand}; echo; read -s -n1 -p '按任意键退出...'"`;
 }
 
 // 侧边栏提供者类
@@ -605,7 +662,7 @@ class CppCompilerSidebarProvider {
                     const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
-                    ShowInfos([`用户在侧边栏选择了编译后在内置终端运行`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 ${customVariable}`]);
+                    ShowInfos([`用户在侧边栏选择了编译后在内置终端运行`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 "${customVariable}"`]);
                     compileAndRun('internal');
                     break;
                 }
@@ -618,7 +675,7 @@ class CppCompilerSidebarProvider {
                     const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
-                    ShowInfos([`用户在侧边栏选择了编译后在外部终端运行`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 ${customVariable}`]);
+                    ShowInfos([`用户在侧边栏选择了编译后在外部终端运行`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 "${customVariable}"`]);
                     compileAndRun('external');
                     break;
                 }
@@ -631,7 +688,7 @@ class CppCompilerSidebarProvider {
                     const useFileRedirect = getFileConfig(data.filePath, 'useFileRedirect');
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
-                    ShowInfos([`用户在侧边栏选择了仅编译`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 ${customVariable}`]);
+                    ShowInfos([`用户在侧边栏选择了仅编译`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 "${customVariable}"`]);
                     OnlyCompile(1, checkFilePath());
                     break;
                 }
@@ -652,16 +709,16 @@ class CppCompilerSidebarProvider {
 
                 case 'toggleUseConsoleInfo': {
                     ShowInfo(`用户在侧边栏更新了 ConsoleInfo.exe 运行选项，现在为：${data.value}`);
-                    const ConsoleInfoConfig = vscode.workspace.getConfiguration('dream-cpp-compiler');
-                    await ConsoleInfoConfig.update('useConsoleInfo', data.value, vscode.ConfigurationTarget.Global);
+                    const Config = vscode.workspace.getConfiguration('dream-cpp-compiler');
+                    await Config.update('useConsoleInfo', data.value, vscode.ConfigurationTarget.Global);
                     this.updateWebviewContent();
                     break;
                 }
 
                 case 'changeCompilerPath': {
                     ShowInfo(`用户在侧边栏更改了编译器路径，现在为：${data.value}`);
-                    const ConsoleInfoConfig = vscode.workspace.getConfiguration('dream-cpp-compiler');
-                    await ConsoleInfoConfig.update('compilerPath', data.value, vscode.ConfigurationTarget.Global);
+                    const Config = vscode.workspace.getConfiguration('dream-cpp-compiler');
+                    await Config.update('compilerPath', data.value, vscode.ConfigurationTarget.Global);
                     this.updateWebviewContent();
                     break;
                 }

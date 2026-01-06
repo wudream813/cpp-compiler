@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "6.0.0",
+	"version": "6.1.0",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -12,7 +12,7 @@
 		"compile"
 	],
 	"engines": {
-		"vscode": "^1.60.0"
+		"vscode": "^1.74.0"
 	},
 	"repository": {
 		"type": "git",
@@ -20,23 +20,28 @@
 	},
 	"badges": [
 		{
-			"url": "https://img.shields.io/github/stars/wudream813/cpp-compiler?style=for-the-badge&color=551A8B&link=https://github.com/wudream813/dream-cpp-compiler",
+			"url": "https://img.shields.io/github/stars/wudream813/cpp-compiler?style=for-the-badge&color=551A8B",
+			"href": "https://github.com/wudream813/dream-cpp-compiler",
 			"description": "给我点一个 star"
 		},
 		{
-			"url": "https://img.shields.io/visual-studio-marketplace/v/wudream.dream-cpp-compiler?style=for-the-badge&color=be2128&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"url": "https://img.shields.io/visual-studio-marketplace/v/wudream.dream-cpp-compiler?style=for-the-badge&color=be2128",
+			"href": "https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
 			"description": "拓展版本"
 		},
 		{
-			"url": "https://img.shields.io/visual-studio-marketplace/i/wudream.dream-cpp-compiler?style=for-the-badge&color=249847&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"url": "https://img.shields.io/visual-studio-marketplace/i/wdream.dream-cpp-compiler?style=for-the-badge&color=249847",
+			"href": "https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
 			"description": "拓展安装量"
 		},
 		{
-			"url": "https://img.shields.io/visual-studio-marketplace/d/wudream.dream-cpp-compiler?style=for-the-badge&color=064f8c&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"url": "https://img.shields.io/visual-studio-marketplace/d/wudream.dream-cpp-compiler?style=for-the-badge&color=064f8c",
+			"href": "https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
 			"description": "拓展下载量"
 		},
 		{
-			"url": "https://img.shields.io/visual-studio-marketplace/stars/wudream.dream-cpp-compiler.cpptools?style=flat-square&color=9400d3&link=https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
+			"url": "https://img.shields.io/visual-studio-marketplace/stars/wudream.dream-cpp-compiler.cpptools?style=flat-square&color=9400d3",
+			"href": "https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
 			"description": "拓展评分"
 		}
 	],
@@ -251,5 +256,20 @@
 				}
 			}
 		}
+	},
+	"scripts": {
+		"lint": "eslint .",
+		"pretest": "npm run lint",
+		"test": "node ./test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/node": "16.x",
+		"@types/vscode": "^1.74.0",
+		"@vscode/test-electron": "^2.2.0",
+		"@vscode/vsce": "^2.15.0",
+		"eslint": "^8.6.0",
+		"glob": "^7.2.0",
+		"mocha": "^9.2.0",
+		"typescript": "^4.5.4"
 	}
 }
