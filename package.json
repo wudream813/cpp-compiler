@@ -40,7 +40,7 @@
 			"description": "拓展下载量"
 		},
 		{
-			"url": "https://img.shields.io/visual-studio-marketplace/stars/wudream.dream-cpp-compiler.cpptools?style=flat-square&color=9400d3",
+			"url": "https://img.shields.io/visual-studio-marketplace/stars/wudream.dream-cpp-compiler?style=flat-square&color=9400d3",
 			"href": "https://marketplace.visualstudio.com/items?itemName=wudream.dream-cpp-compiler",
 			"description": "拓展评分"
 		}
