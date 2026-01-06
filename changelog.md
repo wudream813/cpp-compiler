@@ -1,3 +1,5 @@
+# dream-cpp-compiler v6.1.0
+> 修复了 linux 无法运行的 bug
 # dream-cpp-compiler v6.0.0
 > 修复了 linux 系统下，vscode 无管理员权限，无法运行 ConsoleInfo 的 bug
 > 现在，ConsoleInfo 将会被即时编译，可执行文件放在临时文件夹的 ".dream-cpp-compiler" 文件夹中
