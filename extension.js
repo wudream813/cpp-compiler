@@ -822,6 +822,13 @@ class CppCompilerSidebarProvider {
                     break;
                 }
 
+                case 'updateOutputPath': {
+                    ShowInfo(`用户在侧边栏更新了 ${data.filePath} 的输出路径模板，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'outputPath', data.value);
+                    this.updateWebviewContent();
+                    break;
+                }
+
                 case 'updateCustomVariable': {
                     ShowInfo(`用户在侧边栏更新了 ${data.filePath} 的自定义变量 var 的值，现在为：${data.value}`);
                     setFileConfig(data.filePath, 'customVariable', data.value);
@@ -1152,6 +1159,18 @@ class CppCompilerSidebarProvider {
                     }
                 });
 
+                // 设置输出路径
+                document.getElementById('outputPath').addEventListener('blur', (e) => {
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'updateOutputPath',
+                            filePath: filePath,
+                            value: e.target.value.trim()
+                        });
+                        showSaveStatus('outputPathStatus');
+                    }
+                });
+
                 // 静态链接选项
                 document.getElementById('staticLinking').addEventListener('change', (e) => {
                     if(filePath){
@@ -1169,18 +1188,6 @@ class CppCompilerSidebarProvider {
                         type: 'toggleUseConsoleInfo',
                         value: e.target.checked
                     });
-                });
-
-                // 设置输出路径
-                document.getElementById('outputPath').addEventListener('blur', (e) => {
-                    if(filePath){
-                        vscode.postMessage({
-                            type: 'updateOutputPath',
-                            filePath: filePath,
-                            value: e.target.value.trim()
-                        });
-                        showSaveStatus('outputPathStatus');
-                    }
                 });
 
                 // 设置额外命令
