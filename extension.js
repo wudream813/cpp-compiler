@@ -1358,15 +1358,15 @@ class CppCompilerSidebarProvider {
                             customVariableInput.placeholder = "需要打开本地C++文件";
                         }
 
-                        const customVariableInput = document.getElementById('outputPath');
-                        customVariableInput.disabled = !data.enabled;
+                        const outputPathInput = document.getElementById('outputPath');
+                        outputPathInput.disabled = !data.enabled;
                         if (data.enabled) {
-                            customVariableInput.placeholder = "输出文件路径模板";
-                            customVariableInput.title = "可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}，如：{cppDir}/{baseName}";
+                            outputPathInput.placeholder = "输出文件路径模板";
+                            outputPathInput.title = "可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}，如：{cppDir}/{baseName}";
                         } else {
-                            customVariableInput.value = "";
-                            customVariableInput.title = "需要打开本地C++文件";
-                            customVariableInput.placeholder = "需要打开本地C++文件";
+                            outputPathInput.value = "";
+                            outputPathInput.title = "需要打开本地C++文件";
+                            outputPathInput.placeholder = "需要打开本地C++文件";
                         }
 
                         const list = [
