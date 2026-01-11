@@ -99,9 +99,27 @@ function ShowErrors(Array) {
 }
 
 function GetExePath(cppPath) {
-    const fileName = path.basename(cppPath, '.cpp')
-    const outputPath = path.join(path.dirname(cppPath), fileName);
-    return (process.platform === 'win32' ? `${outputPath}.exe` : outputPath);
+    // 获取输出路径模板
+    const outputPathTemplate = getFileConfig(cppPath, 'outputPath') || '{cppDir}/{baseName}';
+
+    // 替换模板中的变量
+    const baseName = path.basename(cppPath, '.cpp');
+    const cppDir = path.dirname(cppPath);
+    const workdir = vscode.workspace.workspaceFolders ?
+        vscode.workspace.workspaceFolders[0].uri.fsPath : cppDir;
+    const tmpDir = os.tmpdir();
+
+    let outputPath = outputPathTemplate
+        .replace(/\{cppDir\}/g, cppDir)
+        .replace(/\{baseName\}/g, baseName)
+        .replace(/\{workdir\}/g, workdir)
+        .replace(/\{tmpDir\}/g, tmpDir);
+
+    if (process.platform === 'win32' && path.extname(outputPath) === '') {
+        outputPath += '.exe';
+    }
+
+    return outputPath;
 }
 
 // 保存哈希缓存
@@ -230,7 +248,7 @@ function checkFilePath() {
 
 async function CompileModule(filePath, ModuleName, executablePath, compilerOption) {
     const compilerPath = getConfig('compilerPath') || 'g++';
-    const compileCommand = `"${compilerPath}" "${filePath}" ${compilerOption} -static -o "${executablePath}"`;
+    const compileCommand = `"${compilerPath}" "${filePath}" ${compilerOption} ${getConfig('staticOption') || '-static'} -o "${executablePath}"`;
     ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${compileCommand}\n`]);
 
     if (await fs.existsSync(executablePath)) {
@@ -260,8 +278,16 @@ async function OnlyCompile(askUser, filePath) {
 
     const compilerPath = getConfig('compilerPath') || 'g++';
     const iSstatic = getFileConfig(filePath, 'useStaticLinking');
-    const compileOptions = getFileConfig(filePath, 'compileOptions') + (iSstatic ? ' -static' : '');
+    const compileOptions = getFileConfig(filePath, 'compileOptions') + (iSstatic ? ` ${getFileConfig(filePath, 'staticOption') || '-static'}` : '');
     const executablePath = GetExePath(filePath);
+
+    let compileCommandTemplate = getFileConfig(filePath, 'compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"';
+
+    let compileCommand = compileCommandTemplate
+        .replace(/\{cPath\}/g, compilerPath)
+        .replace(/\{cppPath\}/g, filePath)
+        .replace(/\{option\}/g, compileOptions)
+        .replace(/\{outPath\}/g, executablePath);
 
     let forceCompile = false;
     if (!needsRecompile(filePath, compileOptions, compilerPath)) {
