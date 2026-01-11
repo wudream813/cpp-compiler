@@ -150,6 +150,53 @@ function needsRecompile(filePath, compileOptions, compilerPath) {
     }
 }
 
+function parseFileHeaderConfig(filePath) {
+    try {
+        if (!fs.existsSync(filePath)) {
+            return null;
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines = content.split('\n');
+        const config = {};
+
+        // 只检查前50行，避免读取整个大文件
+        for (let i = 0; i < Math.min(lines.length, 50); i++) {
+            const line = lines[i].trim();
+
+            // 跳过空行和非注释行
+            if (!line || (!line.startsWith('//') && !line.startsWith('/*') && !line.startsWith('*'))) {
+                // 如果已经离开注释区域，则停止解析
+                if (i > 20) {
+                    break;
+                }
+                continue;
+            }
+
+            // 处理单行注释 // compileOptions: xxx
+            if (line.startsWith('//')) {
+                const commentLine = line.substring(2).trim();
+                parseConfigLine(commentLine, config);
+            }
+            // 处理多行注释 /* xxx */ 中的行
+            else if (line.startsWith('*')) {
+                const commentLine = line.substring(1).trim();
+                parseConfigLine(commentLine, config);
+            }
+            // 处理多行注释的开始 /*
+            else if (line.startsWith('/*')) {
+                const commentLine = line.substring(2).replace('*/', '').trim();
+                parseConfigLine(commentLine, config);
+            }
+        }
+
+        return Object.keys(config).length > 0 ? config : null;
+    } catch (error) {
+        ShowWarn(`解析文件 ${filePath} 头部配置时出错: ${error.message}`);
+        return null;
+    }
+}
+
 // 获取当前文件的配置
 function getFileConfig(filePath, key) {
     if (!fileConfigs[filePath]) {
