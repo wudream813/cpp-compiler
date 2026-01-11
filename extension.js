@@ -957,8 +957,8 @@ class CppCompilerSidebarProvider {
                             <div class="save-status" id="compileOptionsStatus">✓ 已保存</div>
                         </div>
                         <div class="text-input-container">
-                            <div class="text-input-label">输出文件路径模板</div>
-                            <input type="text" id="outputPath" placeholder="输出文件路径模板" title="可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}，如：{cppDir}/{baseName}">
+                            <div class="text-input-label">输出文件路径</div>
+                            <input type="text" id="outputPath" placeholder="输出文件路径模板" title="输出的可执行文件的路径 ({cppDir} 代表源文件所在目录，{baseName} 代表不带后缀名的文件名，{workdir} 代表工作目录(未打开则就是源文件所在目录)，{tmpDir} 代表临时目录)">
                             <div class="save-status" id="outputPathStatus">✓ 已保存</div>
                         </div>
                         <div class="checkbox-container">
