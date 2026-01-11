@@ -1387,6 +1387,7 @@ class CppCompilerSidebarProvider {
                             document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
                             document.getElementById('moreCommand').value = data.moreCommand;
                             document.getElementById('customVariable').value = data.customVariable;
+                            document.getElementById('outputPath').value = data.outputPath;
                         }
 
                         // 恢复卡片展开/收起状态
