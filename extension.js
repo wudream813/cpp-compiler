@@ -863,6 +863,9 @@ class CppCompilerSidebarProvider {
         let useStatic = false;
         let moreCommand = '';
         let customVariable = '';
+        let outputPath = '';
+        let compileCommand = getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"';
+        let staticOption = getConfig('staticOption') || '-static';
 
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             filePath = editor.document.uri.fsPath;
@@ -882,6 +885,9 @@ class CppCompilerSidebarProvider {
             useStatic = getFileConfig(filePath, 'useStaticLinking');
             moreCommand = getFileConfig(filePath, 'moreCommand');
             customVariable = getFileConfig(filePath, 'customVariable');
+            outputPath = getFileConfig(filePath, 'outputPath');
+            compileCommand = getFileConfig(filePath, 'compileCommand');
+            staticOption = getFileConfig(filePath, 'staticOption');
         }
 
         sidebarPanel.webview.postMessage({
@@ -910,8 +916,8 @@ class CppCompilerSidebarProvider {
             moreCommand: moreCommand,
             customVariable: customVariable,
             outputPath: filePath ? getFileConfig(filePath, 'outputPath') : '',
-            compileCommand: getFileConfig(filePath, 'compileCommand') || getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"',
-            staticOption: getFileConfig(filePath, 'staticOption') || getConfig('staticOption') || '-static'
+            compileCommand:  || ,
+            staticOption:  ||
         });
     }
 
