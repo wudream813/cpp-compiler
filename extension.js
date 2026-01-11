@@ -151,8 +151,24 @@ function getFileConfig(filePath, key) {
             compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
             useStaticLinking: getConfig('useStaticDefaultValue') || false,
             moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
-            customVariable: getConfig('customVariableDefaultValue') || ''
+            customVariable: getConfig('customVariableDefaultValue') || '',
+            outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
+            staticOption: getConfig('staticOption') || '-static',
+            compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
         };
+    }
+    if(key == 'outputPath') {
+        const baseName = path.basename(filePath, ".cpp");
+        const cppDir = path.dirname(filePath);
+        const workdir = vscode.workspace.workspaceFolders ?
+            vscode.workspace.workspaceFolders[0].uri.fsPath : cppDir;
+        const tmpDir = os.tmpdir();
+
+        return fileConfigs[filePath][key]
+            .replace(/\{cppDir\}/g, cppDir)
+            .replace(/\{baseName\}/g, baseName)
+            .replace(/\{workdir\}/g, workdir)
+            .replace(/\{tmpDir\}/g, tmpDir);
     }
     return fileConfigs[filePath][key];
 }
