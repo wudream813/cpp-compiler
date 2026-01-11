@@ -1,97 +1,164 @@
-#include <Windows.h>
-#include <Psapi.h>
-#include <stdio.h>
-#include <conio.h>
-#include <fstream>
+#include <windows.h>
+#include <shlwapi.h>
+#include <cstdio>
+#include <ctime>
 
 using namespace std;
 
-int main(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
-    if (argc != 6) {
-        printf("Áî®Ê≥ï: ConsoleInfoChangeFileIO.exe <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
+// µ›πÈ…æ≥˝ƒø¬º
+void removeDir(const char* path) {
+    WIN32_FIND_DATAA ffd;
+    char search[MAX_PATH];
+    snprintf(search, MAX_PATH, "%s\\*", path);
+    HANDLE hFind = FindFirstFileA(search, &ffd);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            if (strcmp(ffd.cFileName, ".") == 0 || strcmp(ffd.cFileName, "..") == 0) continue;
+            char full[MAX_PATH];
+            snprintf(full, MAX_PATH, "%s\\%s", path, ffd.cFileName);
+            if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                removeDir(full);
+            else
+                DeleteFileA(full);
+        } while (FindNextFileA(hFind, &ffd));
+        FindClose(hFind);
+    }
+    RemoveDirectoryA(path);
+}
+
+//  π”√ Windows API øΩ±¥Œƒº˛
+bool copyFileWin(const char* src, const char* dst) {
+    return CopyFileA(src, dst, FALSE) != 0;
+}
+
+// ¥¥Ω®¡Ÿ ±ƒø¬º
+bool createTempSubDir(char* tempDir, size_t size) {
+    char base[MAX_PATH];
+    if (!GetTempPathA(MAX_PATH, base)) return false;
+
+    snprintf(tempDir, size, "%sdream-cpp-compiler\\tmp_%lld", base, (long long)time(NULL));
+
+    return CreateDirectoryA(tempDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
+}
+
+// ◊‘∂®“Â PROCESS_MEMORY_COUNTERS
+typedef struct _PROCESS_MEMORY_COUNTERS {
+    DWORD cb;
+    DWORD PageFaultCount;
+    SIZE_T PeakWorkingSetSize;
+    SIZE_T WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage;
+    SIZE_T QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage;
+    SIZE_T QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage;
+    SIZE_T PeakPagefileUsage;
+} PROCESS_MEMORY_COUNTERS;
+
+// ‘⁄¡Ÿ ±ƒø¬º‘À––ƒø±Í exe£¨Õ¨ ± ’ºØ CPU/ƒ⁄¥Ê/‘À–– ±º‰–≈œ¢
+int runTargetExe(const char* exePath, const char* workingDir) {
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    memset(&pi, 0, sizeof(pi));
+
+    LARGE_INTEGER startTime, endTime, freq;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&startTime);
+
+    char cmdLine[MAX_PATH * 2];
+    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", exePath);
+
+    if (!CreateProcessA(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, workingDir, &si, &pi)) {
+        printf("Œﬁ∑®¥¥Ω®Ω¯≥Ã£∫%s\n", exePath);
         return -1;
     }
-    string command;
-    if(strcmp(argv[2], argv[4])) {
-        command = "copy /y ";
-        command += argv[4];
-        command += " ";
-        command += argv[2];
-        command += ">nul";
-        // cout << command << '\n';
-        system(command.c_str());
-    }
-    STARTUPINFOA StartupInfo;
-    PROCESS_INFORMATION ProcessInfo;
-    PROCESS_MEMORY_COUNTERS_EX pmc;
-    memset(&ProcessInfo, 0, sizeof(ProcessInfo));
-    memset(&StartupInfo, 0, sizeof(StartupInfo));
-    StartupInfo.cb = sizeof(StartupInfo);
 
-    LARGE_INTEGER StartingTime, EndingTime, Frequency;
-    QueryPerformanceFrequency(&Frequency);
-    QueryPerformanceCounter(&StartingTime);
+    // µ»¥˝Ω¯≥ÃΩ· ¯
+    WaitForSingleObject(pi.hProcess, INFINITE);
 
-    if (!CreateProcessA(NULL, argv[1], NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo)) {
-        printf("\nÊó†Ê≥ïÂêØÂä®ËøõÁ®ãÔºö%s", argv[1]);
-        return -1;
+    // ƒ⁄¥Ê–≈œ¢
+    PROCESS_MEMORY_COUNTERS pmc = {0};
+    HMODULE hPsapi = LoadLibraryA("Psapi.dll");
+    if (hPsapi) {
+        typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
+        PFN_GetProcessMemoryInfo pGetProcessMemoryInfo =
+            (PFN_GetProcessMemoryInfo)GetProcAddress(hPsapi, "GetProcessMemoryInfo");
+        if (pGetProcessMemoryInfo) {
+            pmc.cb = sizeof(pmc);
+            pGetProcessMemoryInfo(pi.hProcess, &pmc, sizeof(pmc));
+        }
+        FreeLibrary(hPsapi);
     }
 
-    // Á≠âÂæÖËøõÁ®ãÁªìÊùü
-    WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
-
-    // Ëé∑ÂèñËøõÁ®ãÂÜÖÂ≠ò‰ø°ÊÅØ
-    GetProcessMemoryInfo(ProcessInfo.hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
-
-    // Ëé∑ÂèñËøõÁ®ãCPUÊó∂Èó¥
+    // CPU  ±º‰
     FILETIME creationTime, exitTime, kernelTime, userTime;
-    GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
+    GetProcessTimes(pi.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
 
-    // ËÆ°ÁÆóÁ®ãÂ∫èËøêË°åÊó∂Èó¥
-    QueryPerformanceCounter(&EndingTime);
-    LONGLONG executionTime = (EndingTime.QuadPart - StartingTime.QuadPart) * 1000000 / Frequency.QuadPart;
+    QueryPerformanceCounter(&endTime);
+    LONGLONG executionTime = (endTime.QuadPart - startTime.QuadPart) * 1000000 / freq.QuadPart;
 
-    // Ëé∑ÂèñËøõÁ®ãÈÄÄÂá∫Á†Å
     DWORD returnValue;
-    GetExitCodeProcess(ProcessInfo.hProcess, &returnValue);
+    GetExitCodeProcess(pi.hProcess, &returnValue);
 
-    // Â∞ÜFILETIMEËΩ¨Êç¢‰∏∫ÂæÆÁßí
-    ULARGE_INTEGER kernelTimeUL, userTimeUL;
-    kernelTimeUL.LowPart = kernelTime.dwLowDateTime;
-    kernelTimeUL.HighPart = kernelTime.dwHighDateTime;
-    userTimeUL.LowPart = userTime.dwLowDateTime;
-    userTimeUL.HighPart = userTime.dwHighDateTime;
+    ULARGE_INTEGER kTime, uTime;
+    kTime.LowPart = kernelTime.dwLowDateTime; kTime.HighPart = kernelTime.dwHighDateTime;
+    uTime.LowPart = userTime.dwLowDateTime; uTime.HighPart = userTime.dwHighDateTime;
 
-    ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10; // ËΩ¨Êç¢‰∏∫ÂæÆÁßí
-    ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;     // ËΩ¨Êç¢‰∏∫ÂæÆÁßí
+    ULONGLONG totalKernelTime = kTime.QuadPart / 10;
+    ULONGLONG totalUserTime = uTime.QuadPart / 10;
 
-    // ÂÖ≥Èó≠Âè•ÊüÑ
-    CloseHandle(ProcessInfo.hProcess);
-    CloseHandle(ProcessInfo.hThread);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
 
-    // ËæìÂá∫‰ø°ÊÅØ
     printf("\n-----------------------------------------------");
-    printf("\nÊÄªÊâßË°åÊó∂Èó¥Ôºö%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÂÜÖÂ≠ò‰ΩøÁî®Ôºö%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUÂÜÖÊ†∏Êó∂Èó¥Ôºö%.3f Áßí", totalKernelTime / 1000000.0);
-    printf("\nCPUÁî®Êà∑Êó∂Èó¥Ôºö%.3f Áßí", totalUserTime / 1000000.0);
-    printf("\nÊÄªCPUÊó∂Èó¥Ôºö%.3f Áßí", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\nËøõÁ®ãËøîÂõûÂÄºÔºö%ld (0x%lX)", returnValue, returnValue);
+    printf("\n◊‹÷¥–– ±º‰£∫%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nƒ⁄¥Ê∑Â÷µ£∫%llu KB", pmc.PeakWorkingSetSize >> 10);
+    printf("\nCPUƒ⁄∫À ±º‰£∫%.3f √Î", totalKernelTime / 1000000.0);
+    printf("\nCPU”√ªß ±º‰£∫%.3f √Î", totalUserTime / 1000000.0);
+    printf("\n◊‹CPU ±º‰£∫%.3f √Î", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\n≥Ã–Ú∑µªÿ÷µ£∫%ld (0x%lX)", returnValue, returnValue);
     printf("\n-----------------------------------------------");
 
-    if(strcmp(argv[2], argv[4])) {
-        string command = "del /f ";
-        command += argv[2];
-        // cout << command << '\n';
-        system(command.c_str());
+    return returnValue;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 6) {
+        printf("”√∑®£∫ConsoleInfoChangeFileIO.exe <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
+        return -1;
     }
-    command = "move /y ";
-    command += argv[3];
-    command += " ";
-    command += argv[5];
-    command += ">nul";
-    // cout << command << '\n';
-    system(command.c_str());
-    return 0;
+
+    const char* commandArg = argv[1];
+    const char* programInput = argv[2];
+    const char* programOutput = argv[3];
+    const char* willInput = argv[4];
+    const char* willOutput = argv[5];
+
+    char tempDir[MAX_PATH], tempInput[MAX_PATH], tempOutput[MAX_PATH], tempExe[MAX_PATH];
+
+    if (!createTempSubDir(tempDir, sizeof(tempDir))) {
+        printf("Œﬁ∑®¥¥Ω®¡Ÿ ±ƒø¬º\n");
+        return -1;
+    }
+
+    snprintf(tempInput, MAX_PATH, "%s\\%s", tempDir, willInput);
+    snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, willOutput);
+
+    // Ω´ WillinputFile ∏¥÷∆µΩ¡Ÿ ±ƒø¬º programInput
+    if (!copyFileWin(programInput, tempInput)) {
+        printf("Œﬁ∑®∏¥÷∆ ‰»ÎŒƒº˛µΩ¡Ÿ ±ƒø¬º\n");
+        removeDir(tempDir);
+        return -1;
+    }
+
+    // ÷¥––¡Ÿ ± exe ≤¢ ’ºØ–≈œ¢
+    int ret = runTargetExe(commandArg, tempDir);
+
+    // Ω´ ‰≥ˆŒƒº˛∏¥÷∆ªÿ WilloutputFile
+    copyFileWin(tempOutput, programOutput);
+
+    // …æ≥˝¡Ÿ ±ƒø¬º
+    removeDir(tempDir);
+
+    return ret;
 }

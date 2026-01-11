@@ -1,22 +1,36 @@
 #include <Windows.h>
-#include <Psapi.h>
 #include <stdio.h>
 #include <conio.h>
 #include <string.h>
 
-// è¾…åŠ©å‡½æ•°ï¼šè®¾ç½®å¥æŸ„ç»§æ‰¿æ€§
+typedef struct _PROCESS_MEMORY_COUNTERS {
+    DWORD cb;
+    DWORD PageFaultCount;
+    SIZE_T PeakWorkingSetSize;
+    SIZE_T WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage;
+    SIZE_T QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage;
+    SIZE_T QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage;
+    SIZE_T PeakPagefileUsage;
+} PROCESS_MEMORY_COUNTERS;
+
+// º¯ÊıÖ¸ÕëÀàĞÍ
+typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
+
+// ¸¨Öúº¯Êı£ºÉèÖÃ¾ä±ú¼Ì³ĞĞÔ
 void SetHandleInheritance(HANDLE hHandle, bool inherit) {
     SetHandleInformation(hHandle, HANDLE_FLAG_INHERIT, inherit ? HANDLE_FLAG_INHERIT : 0);
 }
 
 int main(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
     if (argc != 4) {
-        printf("ç”¨æ³•ï¼šConsoleInfoFileIO.exe <command> <inputFile> <outputFile>\n");
+        printf("ÓÃ·¨£ºConsoleInfoFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
 
-    // æ‰“å¼€è¾“å…¥æ–‡ä»¶
+    // ´ò¿ªÊäÈëÎÄ¼ş
     HANDLE hInput = CreateFileA(
         argv[2],
         GENERIC_READ,
@@ -28,11 +42,11 @@ int main(int argc, char* argv[]) {
     );
 
     if (hInput == INVALID_HANDLE_VALUE) {
-        printf("æ‰“å¼€è¾“å…¥æ–‡ä»¶å¤±è´¥: %sï¼Œé”™è¯¯ç : %d\n", argv[2], GetLastError());
+        printf("´ò¿ªÊäÈëÎÄ¼şÊ§°Ü: %s£¬´íÎóÂë: %d\n", argv[2], GetLastError());
         return -1;
     }
 
-    // æ‰“å¼€è¾“å‡ºæ–‡ä»¶
+    // ´ò¿ªÊä³öÎÄ¼ş
     HANDLE hOutput = CreateFileA(
         argv[3],
         GENERIC_WRITE,
@@ -44,57 +58,70 @@ int main(int argc, char* argv[]) {
     );
 
     if (hOutput == INVALID_HANDLE_VALUE) {
-        printf("æ‰“å¼€è¾“å‡ºæ–‡ä»¶å¤±è´¥: %sï¼Œé”™è¯¯ç : %d\n", argv[3], GetLastError());
+        printf("´ò¿ªÊä³öÎÄ¼şÊ§°Ü: %s£¬´íÎóÂë: %d\n", argv[3], GetLastError());
         CloseHandle(hInput);
         return -1;
     }
 
-    // é…ç½®å¥æŸ„ç»§æ‰¿æ€§
+    // ÅäÖÃ¾ä±ú¼Ì³ĞĞÔ
     SetHandleInheritance(hInput, true);
     SetHandleInheritance(hOutput, true);
 
-    // æ˜ç¡®ä½¿ç”¨ANSIç‰ˆæœ¬çš„ç»“æ„ä½“
-    STARTUPINFOA StartupInfo;  // è¿™é‡Œä½¿ç”¨STARTUPINFOAè€ŒéSTARTUPINFO
+    // Ã÷È·Ê¹ÓÃANSI°æ±¾µÄ½á¹¹Ìå
+    STARTUPINFOA StartupInfo;  // ÕâÀïÊ¹ÓÃSTARTUPINFOA¶ø·ÇSTARTUPINFO
     PROCESS_INFORMATION ProcessInfo;
-    PROCESS_MEMORY_COUNTERS_EX pmc;
     memset(&ProcessInfo, 0, sizeof(ProcessInfo));
     memset(&StartupInfo, 0, sizeof(StartupInfo));
-    StartupInfo.cb = sizeof(STARTUPINFOA);  // æ˜ç¡®æŒ‡å®šANSIç‰ˆæœ¬å¤§å°
+    StartupInfo.cb = sizeof(STARTUPINFOA);  // Ã÷È·Ö¸¶¨ANSI°æ±¾´óĞ¡
     StartupInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
     StartupInfo.wShowWindow = SW_HIDE;
     StartupInfo.hStdInput = hInput;
     StartupInfo.hStdOutput = hOutput;
     StartupInfo.hStdError = hOutput;
 
-    // è®°å½•å¼€å§‹æ—¶é—´
+    char cmdLine[MAX_PATH * 2];
+    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", argv[1]);
+
+    // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
     LARGE_INTEGER StartingTime, EndingTime, Frequency;
     QueryPerformanceFrequency(&Frequency);
     QueryPerformanceCounter(&StartingTime);
 
-    // åˆ›å»ºè¿›ç¨‹ï¼ˆä½¿ç”¨ANSIç‰ˆæœ¬çš„CreateProcessAï¼‰
+    // ´´½¨½ø³Ì£¨Ê¹ÓÃANSI°æ±¾µÄCreateProcessA£©
     if (!CreateProcessA(
         NULL,
-        argv[1],
+        cmdLine,
         NULL,
         NULL,
         TRUE,
         0,
         NULL,
         NULL,
-        &StartupInfo,  // ç°åœ¨ç±»å‹åŒ¹é…äº†
+        &StartupInfo,  // ÏÖÔÚÀàĞÍÆ¥ÅäÁË
         &ProcessInfo
     )) {
-        printf("åˆ›å»ºè¿›ç¨‹å¤±è´¥: %sï¼Œé”™è¯¯ç : %d\n", argv[1], GetLastError());
+        printf("´´½¨½ø³ÌÊ§°Ü: %s£¬´íÎóÂë: %d\n", argv[1], GetLastError());
         CloseHandle(hInput);
         CloseHandle(hOutput);
         return -1;
     }
 
-    // ç­‰å¾…è¿›ç¨‹ç»“æŸ
+    // µÈ´ı½ø³Ì½áÊø
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
 
-    // è·å–å¹¶è¾“å‡ºç»Ÿè®¡ä¿¡æ¯
-    GetProcessMemoryInfo(ProcessInfo.hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
+    // »ñÈ¡²¢Êä³öÍ³¼ÆĞÅÏ¢
+    PROCESS_MEMORY_COUNTERS pmc = {};
+    HMODULE hPsapi = LoadLibraryA("Psapi.dll");
+    if (hPsapi) {
+        typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
+        PFN_GetProcessMemoryInfo pGetProcessMemoryInfo =
+            (PFN_GetProcessMemoryInfo)GetProcAddress(hPsapi, "GetProcessMemoryInfo");
+        if (pGetProcessMemoryInfo) {
+            pmc.cb = sizeof(pmc);
+            pGetProcessMemoryInfo(ProcessInfo.hProcess, &pmc, sizeof(pmc));
+        }
+        FreeLibrary(hPsapi);
+    }
 
     FILETIME creationTime, exitTime, kernelTime, userTime;
     GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
@@ -114,20 +141,20 @@ int main(int argc, char* argv[]) {
     ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10;
     ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;
 
-    // æ¸…ç†èµ„æº
+    // ÇåÀí×ÊÔ´
     CloseHandle(ProcessInfo.hProcess);
     CloseHandle(ProcessInfo.hThread);
     CloseHandle(hInput);
     CloseHandle(hOutput);
 
-    // è¾“å‡ºç»“æœ
+    // Êä³ö½á¹û
     printf("\n-----------------------------------------------");
-    printf("\næ€»æ‰§è¡Œæ—¶é—´ï¼š%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nå†…å­˜ä½¿ç”¨ï¼š%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUå†…æ ¸æ—¶é—´ï¼š%.3f ç§’", totalKernelTime / 1000000.0);
-    printf("\nCPUç”¨æˆ·æ—¶é—´ï¼š%.3f ç§’", totalUserTime / 1000000.0);
-    printf("\næ€»CPUæ—¶é—´ï¼š%.3f ç§’", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\nç¨‹åºè¿”å›å€¼ï¼š%ld (0x%lX)", returnValue, returnValue);
+    printf("\n×ÜÖ´ĞĞÊ±¼ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nÄÚ´æÊ¹ÓÃ£º%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
+    printf("\nCPUÄÚºËÊ±¼ä£º%.3f Ãë", totalKernelTime / 1000000.0);
+    printf("\nCPUÓÃ»§Ê±¼ä£º%.3f Ãë", totalUserTime / 1000000.0);
+    printf("\n×ÜCPUÊ±¼ä£º%.3f Ãë", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\n³ÌĞò·µ»ØÖµ£º%ld (0x%lX)", returnValue, returnValue);
     printf("\n-----------------------------------------------");
     return 0;
 }

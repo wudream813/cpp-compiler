@@ -1,90 +1,181 @@
-#include<iostream>
-#include<limits.h>
-#include<cstring>
-#include<fstream>
 #include <Windows.h>
-#include <Psapi.h>
+#include <cstdio>
+#include <ctime>
 
-using namespace std;
+// ×Ô¶¨Òå PROCESS_MEMORY_COUNTERS ½á¹¹
+typedef struct _PROCESS_MEMORY_COUNTERS {
+    DWORD cb;
+    DWORD PageFaultCount;
+    SIZE_T PeakWorkingSetSize;
+    SIZE_T WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage;
+    SIZE_T QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage;
+    SIZE_T QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage;
+    SIZE_T PeakPagefileUsage;
+} PROCESS_MEMORY_COUNTERS;
+
+// º¯ÊıÖ¸ÕëÀàĞÍ
+typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
+
+// ´´½¨ÁÙÊ±Ä¿Â¼
+bool createTempSubDir(char* tempDir, size_t size) {
+    char base[MAX_PATH];
+    if (!GetTempPathA(MAX_PATH, base)) return false;
+
+    snprintf(tempDir, size, "%s\\dream-cpp-compiler\\tmp_%lld", base, (long long)time(NULL));
+
+    return CreateDirectoryA(tempDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
+}
+
+// µİ¹éÉ¾³ıÄ¿Â¼
+void removeDir(const char* path) {
+    WIN32_FIND_DATAA ffd;
+    char search[MAX_PATH];
+    snprintf(search, MAX_PATH, "%s\\*", path);
+    HANDLE hFind = FindFirstFileA(search, &ffd);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            if (strcmp(ffd.cFileName, ".") == 0 || strcmp(ffd.cFileName, "..") == 0) continue;
+            char full[MAX_PATH];
+            snprintf(full, MAX_PATH, "%s\\%s", path, ffd.cFileName);
+            if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                removeDir(full);
+            else
+                DeleteFileA(full);
+        } while (FindNextFileA(hFind, &ffd));
+        FindClose(hFind);
+    }
+    RemoveDirectoryA(path);
+}
+
+// ½« stdin Ğ´ÈëÎÄ¼ş
+bool writeStdinToFile(const char* filePath) {
+    HANDLE hFile = CreateFileA(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return false;
+
+    char buffer[4096];
+    DWORD readBytes, writtenBytes;
+    HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+    while (ReadFile(hStdIn, buffer, sizeof(buffer), &readBytes, NULL) && readBytes > 0) {
+        WriteFile(hFile, buffer, readBytes, &writtenBytes, NULL);
+    }
+
+    CloseHandle(hFile);
+    return true;
+}
+
+// Ö´ĞĞ exe ²¢ÊÕ¼¯ CPU/ÄÚ´æ/ÔËĞĞÊ±¼äĞÅÏ¢
+int runTargetExe(const char* exePath, const char* workingDir, const char* outputPath) {
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    memset(&pi, 0, sizeof(pi));
+
+    LARGE_INTEGER startTime, endTime, freq;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&startTime);
+
+    char cmdLine[MAX_PATH * 2];
+    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", exePath);
+
+    if (!CreateProcessA(NULL, cmdLine, NULL, NULL, TRUE, 0, NULL, workingDir, &si, &pi)) {
+        return -1;
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    // ÄÚ´æĞÅÏ¢
+    PROCESS_MEMORY_COUNTERS pmc = { sizeof(pmc) };
+    HMODULE hPsapi = LoadLibraryA("Psapi.dll");
+    if (hPsapi) {
+        PFN_GetProcessMemoryInfo pGetProcessMemoryInfo =
+            (PFN_GetProcessMemoryInfo)GetProcAddress(hPsapi, "GetProcessMemoryInfo");
+        if (pGetProcessMemoryInfo) {
+            pmc.cb = sizeof(pmc);
+            pGetProcessMemoryInfo(pi.hProcess, &pmc, sizeof(pmc));
+        }
+        FreeLibrary(hPsapi);
+    }
+
+    // CPU Ê±¼ä
+    FILETIME creationTime, exitTime, kernelTime, userTime;
+    GetProcessTimes(pi.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
+
+    QueryPerformanceCounter(&endTime);
+    LONGLONG executionTime = (endTime.QuadPart - startTime.QuadPart) * 1000000 / freq.QuadPart;
+
+    DWORD returnValue;
+    GetExitCodeProcess(pi.hProcess, &returnValue);
+
+    ULARGE_INTEGER kTime, uTime;
+    kTime.LowPart = kernelTime.dwLowDateTime; kTime.HighPart = kernelTime.dwHighDateTime;
+    uTime.LowPart = userTime.dwLowDateTime; uTime.HighPart = userTime.dwHighDateTime;
+
+    ULONGLONG totalKernelTime = kTime.QuadPart / 10;
+    ULONGLONG totalUserTime = uTime.QuadPart / 10;
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    HANDLE hFile = CreateFileA(outputPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        printf("´íÎó£ºÎŞ·¨´ò¿ªÊä³öÎÄ¼ş");
+    } else {
+        char buffer[4096];
+        DWORD readBytes;
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        while (ReadFile(hFile, buffer, sizeof(buffer), &readBytes, NULL) && readBytes > 0) {
+            DWORD written;
+            WriteConsoleA(hConsole, buffer, readBytes, &written, NULL);
+        }
+
+        CloseHandle(hFile);
+    }
+
+    // Êä³öĞÔÄÜĞÅÏ¢
+    printf("\n-----------------------------------------------");
+    printf("\n×ÜÖ´ĞĞÊ±¼ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nÄÚ´æÊ¹ÓÃ£º%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
+    printf("\nCPUÄÚºËÊ±¼ä£º%.3f Ãë", totalKernelTime / 1000000.0);
+    printf("\nCPUÓÃ»§Ê±¼ä£º%.3f Ãë", totalUserTime / 1000000.0);
+    printf("\n×ÜCPUÊ±¼ä£º%.3f Ãë", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\n³ÌĞò·µ»ØÖµ£º%ld (0x%lX)", returnValue, returnValue);
+    printf("\n-----------------------------------------------");
+
+    return returnValue;
+}
 
 int main(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
     if (argc != 4) {
-        printf("ç”¨æ³•ï¼šConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
-        return -1;
-    }
-    ofstream out(argv[2]);
-    for(string r; getline(cin, r);) {
-        out << r << '\n';
-    }
-    out.close();
-    STARTUPINFOA StartupInfo;
-    PROCESS_INFORMATION ProcessInfo;
-    PROCESS_MEMORY_COUNTERS_EX pmc;
-    memset(&ProcessInfo, 0, sizeof(ProcessInfo));
-    memset(&StartupInfo, 0, sizeof(StartupInfo));
-    StartupInfo.cb = sizeof(StartupInfo);
-
-    LARGE_INTEGER StartingTime, EndingTime, Frequency;
-    QueryPerformanceFrequency(&Frequency);
-    QueryPerformanceCounter(&StartingTime);
-
-    if (!CreateProcessA(NULL, argv[1], NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo)) {
-        printf("\næ— æ³•åˆ›å»ºè¿›ç¨‹ï¼š%s", argv[1]);
+        printf("ÓÃ·¨£ºConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
 
-    // ç­‰å¾…è¿›ç¨‹ç»“æŸ
-    WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
+    const char *inputFile = argv[2];
+    const char *outputFile = argv[3];
 
-    // è·å–è¿›ç¨‹å†…å­˜ä¿¡æ¯
-    GetProcessMemoryInfo(ProcessInfo.hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc));
+    char tempDir[MAX_PATH];
+    if (!createTempSubDir(tempDir, sizeof(tempDir))) {
+        printf("ÎŞ·¨´´½¨ÁÙÊ±Ä¿Â¼\n");
+        return -1;
+    }
 
-    // è·å–è¿›ç¨‹CPUæ—¶é—´
-    FILETIME creationTime, exitTime, kernelTime, userTime;
-    GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
+    char tempInput[MAX_PATH], tempOutput[MAX_PATH];
+    snprintf(tempInput, MAX_PATH, "%s\\%s", tempDir, inputFile);
+    snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, outputFile);
 
-    // è®¡ç®—æ€»è¿è¡Œæ—¶é—´
-    QueryPerformanceCounter(&EndingTime);
-    LONGLONG executionTime = (EndingTime.QuadPart - StartingTime.QuadPart) * 1000000 / Frequency.QuadPart;
+    if (!writeStdinToFile(tempInput)) {
+        printf("ÎŞ·¨Ğ´ÈëÁÙÊ±ÊäÈëÎÄ¼ş\n");
+        removeDir(tempDir);
+        return -1;
+    }
 
-    // è·å–ç¨‹åºé€€å‡ºä»£ç 
-    DWORD returnValue;
-    GetExitCodeProcess(ProcessInfo.hProcess, &returnValue);
+    // Ö´ĞĞÃüÁî²¢ÊÕ¼¯ĞÅÏ¢
+    int ret = runTargetExe(argv[1], tempDir, tempOutput);
 
-    // å°†FILETIMEè½¬æ¢ä¸ºå¾®ç§’
-    ULARGE_INTEGER kernelTimeUL, userTimeUL;
-    kernelTimeUL.LowPart = kernelTime.dwLowDateTime;
-    kernelTimeUL.HighPart = kernelTime.dwHighDateTime;
-    userTimeUL.LowPart = userTime.dwLowDateTime;
-    userTimeUL.HighPart = userTime.dwHighDateTime;
+    // É¾³ıÁÙÊ±Ä¿Â¼
+    removeDir(tempDir);
 
-    ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10; // è½¬æ¢ä¸ºå¾®ç§’
-    ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;     // è½¬æ¢ä¸ºå¾®ç§’
-
-    // å…³é—­è¿›ç¨‹å¥æŸ„
-    CloseHandle(ProcessInfo.hProcess);
-    CloseHandle(ProcessInfo.hThread);
-
-    string command = "copy ";
-    command += argv[3];
-    command += " con>nul";
-    system(command.c_str());
-    command = "del /f ";
-    command += argv[3];
-    system(command.c_str());
-    command = "del /f ";
-    command += argv[2];
-    system(command.c_str());
-
-    // è¾“å‡ºç»“æœ
-    printf("\n-----------------------------------------------");
-    printf("\næ€»æ‰§è¡Œæ—¶é—´ï¼š%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nå†…å­˜ä½¿ç”¨ï¼š%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUå†…æ ¸æ—¶é—´ï¼š%.3f ç§’", totalKernelTime / 1000000.0);
-    printf("\nCPUç”¨æˆ·æ—¶é—´ï¼š%.3f ç§’", totalUserTime / 1000000.0);
-    printf("\næ€»CPUæ—¶é—´ï¼š%.3f ç§’", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\nç¨‹åºè¿”å›å€¼ï¼š%ld (0x%lX)", returnValue, returnValue);
-    printf("\n-----------------------------------------------");
-    return 0;
+    return ret;
 }

@@ -1,96 +1,114 @@
-#include <iostream>
-#include <cstring>
-#include <cstdlib>
-#include <libgen.h>
-#include <sys/wait.h>
-#include <string>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <time.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/resource.h>
-#include <sys/time.h>
+#include <limits.h>
 
-using namespace std;
+void removeDir(const char* path) {
+    DIR* d = opendir(path);
+    if (d) {
+        struct dirent* p;
+        while ((p = readdir(d))) {
+            if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, "..")) continue;
+            char buf[PATH_MAX];
+            snprintf(buf, PATH_MAX, "%s/%s", path, p->d_name);
+            struct stat statbuf;
+            if (!stat(buf, &statbuf)) {
+                if (S_ISDIR(statbuf.st_mode)) removeDir(buf);
+                else unlink(buf);
+            }
+        }
+        closedir(d);
+    }
+    rmdir(path);
+}
+
+bool copyFileLinux(const char* src, const char* dst) {
+    int fd_in = open(src, O_RDONLY);
+    if (fd_in < 0) return false;
+    int fd_out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd_out < 0) { close(fd_in); return false; }
+
+    char buffer[4096];
+    ssize_t bytes;
+    while ((bytes = read(fd_in, buffer, sizeof(buffer))) > 0) {
+        write(fd_out, buffer, bytes);
+    }
+    close(fd_in);
+    close(fd_out);
+    return true;
+}
+
+bool createTempSubDir(char* tempDir, size_t size) {
+    const char* base = getenv("TMPDIR");
+    if (!base) base = "/tmp";
+    snprintf(tempDir, size, "%s/dream-cpp-compiler/tmp_%lld", base, (long long)time(NULL));
+    return mkdir(tempDir, 0777) == 0;
+}
+
+int runTargetExe(const char* exePath, const char* workingDir) {
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        if (workingDir) chdir(workingDir);
+        char* args[] = { (char*)exePath, NULL };
+        execvp(exePath, args);
+        _exit(127);
+    }
+
+    int status;
+    struct rusage usage;
+    waitpid(pid, &status, 0);
+    getrusage(RUSAGE_CHILDREN, &usage);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    long long executionTimeMs = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
+    double userTime = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6;
+    double sysTime = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+    long memoryPeakKB = usage.ru_maxrss;
+    int returnValue = WIFEXITED(status) ? WEXITSTATUS(status) : (128 + WTERMSIG(status));
+
+    printf("\n-----------------------------------------------");
+    printf("\næ€»æ‰§è¡Œæ—¶é—´ï¼š%lld.%03lld ms", executionTimeMs / 1000, executionTimeMs % 1000);
+    printf("\nå†…å­˜å³°å€¼ï¼š%ld KB", memoryPeakKB);
+    printf("\nCPUå†…æ ¸æ—¶é—´ï¼š%.3f ç§’", sysTime);
+    printf("\nCPUç”¨æˆ·æ—¶é—´ï¼š%.3f ç§’", userTime);
+    printf("\næ€»CPUæ—¶é—´ï¼š%.3f ç§’", sysTime + userTime);
+    printf("\nç¨‹åºè¿”å›å€¼ï¼š%d (0x%X)", returnValue, returnValue);
+    printf("\n-----------------------------------------------");
+
+    return returnValue;
+}
 
 int main(int argc, char* argv[]) {
     if (argc != 6) {
-        printf("ÓÃ·¨£ºConsoleInfoChangeFileIO <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
+        printf("ç”¨æ³•ï¼šConsoleInfoChangeFileIO <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
+        return 0;
+    }
+    char tempDir[PATH_MAX], tempInput[PATH_MAX], tempOutput[PATH_MAX];
+    if (!createTempSubDir(tempDir, sizeof(tempDir))) {
+        printf("æ— æ³•åˆ›å»ºä¸´æ—¶ç›®å½•\n");
+        return -1;
+    }
+    snprintf(tempInput, PATH_MAX, "%s/%s", tempDir, argv[4]);
+    snprintf(tempOutput, PATH_MAX, "%s/%s", tempDir, argv[5]);
+
+    if (!copyFileLinux(argv[2], tempInput)) {
+        printf("æ— æ³•å¤åˆ¶è¾“å…¥æ–‡ä»¶åˆ°ä¸´æ—¶ç›®å½•\n");
+        removeDir(tempDir);
         return -1;
     }
 
-    string programIn = argv[2];
-    string programOut = argv[3];
-    string willIn = argv[4];
-    string willOut = argv[5];
-
-    // ÈôÊäÈëÎÄ¼ş²»Í¬Ôò¸´ÖÆ
-    if (strcmp(argv[2], argv[4]) != 0) {
-        string cmd = "cp ";
-        cmd += willIn + " " + programIn;
-        system(cmd.c_str());
-    }
-
-    // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
-    struct timeval start_time, end_time;
-    gettimeofday(&start_time, NULL);
-
-    // Ö´ĞĞÃüÁî
-    pid_t pid = fork();
-    if (pid == -1) {
-        perror("fork failed");
-        return 1;
-    }
-
-    if (pid == 0) { // ×Ó½ø³ÌÖ´ĞĞÃüÁî
-        execl("/bin/sh", "sh", "-c", argv[1], (char*)NULL);
-        perror("execl failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // µÈ´ı½ø³Ì½áÊø
-    int status;
-    waitpid(pid, &status, 0);
-
-    // ¼ÇÂ¼½áÊøÊ±¼ä
-    gettimeofday(&end_time, NULL);
-
-    // ¼ÆËã×ÜÖ´ĞĞÊ±¼ä(Î¢Ãë)
-    long long executionTime = (end_time.tv_sec - start_time.tv_sec) * 1000000LL +
-                             (end_time.tv_usec - start_time.tv_usec);
-
-    // »ñÈ¡½ø³Ì×ÊÔ´Ê¹ÓÃÇé¿ö
-    struct rusage usage;
-    getrusage(RUSAGE_CHILDREN, &usage);
-
-    // ¼ÆËãÄÚ´æÊ¹ÓÃ(KB)
-    long peakMemory = usage.ru_maxrss;
-
-    // ¼ÆËãCPUÊ±¼ä(Î¢Ãë)
-    long long kernelTime = usage.ru_stime.tv_sec * 1000000LL + usage.ru_stime.tv_usec;
-    long long userTime = usage.ru_utime.tv_sec * 1000000LL + usage.ru_utime.tv_usec;
-
-    // »ñÈ¡ÍË³ö´úÂë
-    int returnValue = WEXITSTATUS(status);
-
-    // Êä³ö½á¹û
-    printf("\n-----------------------------------------------");
-    printf("\n×ÜÖ´ĞĞÊ±¼ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÄÚ´æÊ¹ÓÃ£º%ld KB", peakMemory);
-    printf("\nCPUÄÚºËÊ±¼ä£º%.3f Ãë", kernelTime / 1000000.0);
-    printf("\nCPUÓÃ»§Ê±¼ä£º%.3f Ãë", userTime / 1000000.0);
-    printf("\n×ÜCPUÊ±¼ä£º%.3f Ãë", (kernelTime + userTime) / 1000000.0);
-    printf("\n³ÌĞò·µ»ØÖµ£º%d (0x%X)", returnValue, returnValue);
-    printf("\n-----------------------------------------------");
-
-    // É¾³ıÖĞ¼äÊäÈëÎÄ¼ş
-    if (strcmp(argv[2], argv[4]) != 0) {
-        string delCmd = "rm -f ";
-        delCmd += programIn;
-        system(delCmd.c_str());
-    }
-
-    // ÒÆ¶¯Êä³öÎÄ¼ş
-    string moveCmd = "mv ";
-    moveCmd += programOut + " " + willOut;
-    system(moveCmd.c_str());
-
-    return 0;
+    int ret = runTargetExe(argv[1], tempDir);
+    copyFileLinux(tempOutput, argv[3]);
+    removeDir(tempDir);
+    return ret;
 }

@@ -1,18 +1,32 @@
 #include <Windows.h>
-#include <Psapi.h>
 #include <stdio.h>
 #include <conio.h>
 
+// ◊‘∂®“Â PROCESS_MEMORY_COUNTERS Ω·ππ
+typedef struct _PROCESS_MEMORY_COUNTERS {
+    DWORD cb;
+    DWORD PageFaultCount;
+    SIZE_T PeakWorkingSetSize;
+    SIZE_T WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage;
+    SIZE_T QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage;
+    SIZE_T QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage;
+    SIZE_T PeakPagefileUsage;
+} PROCESS_MEMORY_COUNTERS;
+
+// ∫Ø ˝÷∏’Î¿‡–Õ
+typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
+
 int main(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
     if (argc != 2) {
-        printf("Áî®Ê≥ïÔºöConsoleInfo.exe <command>\n");
+        printf("”√∑®£∫ConsoleInfo.exe <command>\n");
         return -1;
     }
 
     STARTUPINFOA StartupInfo;
     PROCESS_INFORMATION ProcessInfo;
-    PROCESS_MEMORY_COUNTERS_EX pmc;
     memset(&ProcessInfo, 0, sizeof(ProcessInfo));
     memset(&StartupInfo, 0, sizeof(StartupInfo));
     StartupInfo.cb = sizeof(StartupInfo);
@@ -21,56 +35,65 @@ int main(int argc, char* argv[]) {
     QueryPerformanceFrequency(&Frequency);
     QueryPerformanceCounter(&StartingTime);
 
-    if (!CreateProcessA(NULL, argv[1], NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo)) {
-        printf("\nÊó†Ê≥ïÂàõÂª∫ËøõÁ®ãÔºö%s\n", argv[1]);
+    char cmdLine[MAX_PATH * 2];
+    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", argv[1]);
+
+    if (!CreateProcessA(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo)) {
+        printf("\nŒﬁ∑®¥¥Ω®Ω¯≥Ã£∫%s", cmdLine);
         return -1;
     }
 
-    // Á≠âÂæÖËøõÁ®ãÁªìÊùü
+    // µ»¥˝Ω¯≥ÃΩ· ¯
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
 
-    // Ëé∑ÂèñËøõÁ®ãÂÜÖÂ≠ò‰ø°ÊÅØ
-    if (!GetProcessMemoryInfo(ProcessInfo.hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
-        printf("\nÊó†Ê≥ïËé∑ÂèñÂÜÖÂ≠ò‰ø°ÊÅØ\n");
+    // ∂ØÃ¨º”‘ÿ GetProcessMemoryInfo
+    PROCESS_MEMORY_COUNTERS pmc = {0};
+    HMODULE hPsapi = LoadLibraryA("Psapi.dll");
+    if (hPsapi) {
+        PFN_GetProcessMemoryInfo pGetProcessMemoryInfo =
+            (PFN_GetProcessMemoryInfo)GetProcAddress(hPsapi, "GetProcessMemoryInfo");
+        if (pGetProcessMemoryInfo) {
+            pmc.cb = sizeof(pmc);
+            pGetProcessMemoryInfo(ProcessInfo.hProcess, &pmc, sizeof(pmc));
+        }
+        FreeLibrary(hPsapi);
     }
 
-    // Ëé∑ÂèñËøõÁ®ãCPUÊó∂Èó¥
+    // ªÒ»°CPU ±º‰
     FILETIME creationTime, exitTime, kernelTime, userTime;
-    if (!GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime)) {
-        printf("\nÊó†Ê≥ïËé∑ÂèñCPUÊó∂Èó¥\n");
-    }
+    GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
 
-    // ËÆ°ÁÆóÊâßË°åÊó∂Èó¥
+    // º∆À„◊‹‘À–– ±º‰
     QueryPerformanceCounter(&EndingTime);
     LONGLONG executionTime = (EndingTime.QuadPart - StartingTime.QuadPart) * 1000000 / Frequency.QuadPart;
 
-    // Ëé∑ÂèñËøõÁ®ãÈÄÄÂá∫Á†Å
+    // ªÒ»°≥Ã–ÚÕÀ≥ˆ¥˙¬Î
     DWORD returnValue;
     GetExitCodeProcess(ProcessInfo.hProcess, &returnValue);
 
-    // Â∞Ü FILETIME ËΩ¨Êç¢‰∏∫ ÂæÆÁßí
+    // Ω´FILETIME◊™ªªŒ™Œ¢√Î
     ULARGE_INTEGER kernelTimeUL, userTimeUL;
     kernelTimeUL.LowPart = kernelTime.dwLowDateTime;
     kernelTimeUL.HighPart = kernelTime.dwHighDateTime;
     userTimeUL.LowPart = userTime.dwLowDateTime;
     userTimeUL.HighPart = userTime.dwHighDateTime;
 
-    ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10; // ËΩ¨Êç¢‰∏∫ÂæÆÁßí
-    ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;     // ËΩ¨Êç¢‰∏∫ÂæÆÁßí
+    ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10;
+    ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;
 
-    // ÂÖ≥Èó≠Âè•ÊüÑ
+    // πÿ±’æ‰±˙
     CloseHandle(ProcessInfo.hProcess);
     CloseHandle(ProcessInfo.hThread);
 
-    // ËæìÂá∫ÁªìÊûúÔºàUTF-8Ôºâ
+    //  ‰≥ˆΩ·π˚
     printf("\n-----------------------------------------------");
-    printf("\nÂ∑≤ÊâßË°åÊó∂Èó¥Ôºö%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÂÜÖÂ≠ò‰ΩøÁî®Ôºö%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUÂÜÖÊ†∏Êó∂Èó¥Ôºö%.3f Áßí", totalKernelTime / 1000000.0);
-    printf("\nCPUÁî®Êà∑Êó∂Èó¥Ôºö%.3f Áßí", totalUserTime / 1000000.0);
-    printf("\nÊÄªCPUÊó∂Èó¥Ôºö%.3f Áßí", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\nËøõÁ®ãËøîÂõûÂÄºÔºö%ld (0x%lX)", returnValue, returnValue);
-    printf("\n-----------------------------------------------\n");
+    printf("\n◊‹÷¥–– ±º‰£∫%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nƒ⁄¥Ê∑Â÷µ£∫%llu KB", pmc.PeakWorkingSetSize >> 10);
+    printf("\nCPUƒ⁄∫À ±º‰£∫%.3f √Î", totalKernelTime / 1000000.0);
+    printf("\nCPU”√ªß ±º‰£∫%.3f √Î", totalUserTime / 1000000.0);
+    printf("\n◊‹CPU ±º‰£∫%.3f √Î", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\n≥Ã–Ú∑µªÿ÷µ£∫%ld (0x%lX)", returnValue, returnValue);
+    printf("\n-----------------------------------------------");
 
     return 0;
 }
