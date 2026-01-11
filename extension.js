@@ -1358,7 +1358,7 @@ class CppCompilerSidebarProvider {
                             customVariableInput.placeholder = "需要打开本地C++文件";
                         }
 
-                        const customVariableInput = document.getElementById('customVariable');
+                        const customVariableInput = document.getElementById('outputPath');
                         customVariableInput.disabled = !data.enabled;
                         if (data.enabled) {
                             customVariableInput.removeAttribute('title');
