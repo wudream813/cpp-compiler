@@ -1171,6 +1171,18 @@ class CppCompilerSidebarProvider {
                     });
                 });
 
+                // 设置输出路径
+                document.getElementById('outputPath').addEventListener('blur', (e) => {
+                    if(filePath){
+                        vscode.postMessage({
+                            type: 'updateOutputPath',
+                            filePath: filePath,
+                            value: e.target.value.trim()
+                        });
+                        showSaveStatus('outputPathStatus');
+                    }
+                });
+
                 // 设置额外命令
                 document.getElementById('moreCommand').addEventListener('blur', (e) => {
                     if(filePath){
