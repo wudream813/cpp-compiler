@@ -185,7 +185,7 @@ function parseFileHeaderConfig(filePath) {
             const pos = line.indexOf(':');
             if(pos === -1) continue;
             let end = -1;
-            for (let i = colposon - 1; i >= 0; --i) {
+            for (let i = pos - 1; i >= 0; --i) {
                 const c = s.charCodeAt(i);
                 if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
                     end = i;
@@ -204,7 +204,8 @@ function parseFileHeaderConfig(filePath) {
 
             let str = s.slice(start + 1, end + 1);
 
-            
+            let i = colon + 1;
+            while (i < s.length && s[i] === ' ') i++;
         }
 
         return Object.keys(config).length > 0 ? config : null;
