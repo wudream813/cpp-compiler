@@ -851,6 +851,10 @@ class CppCompilerSidebarProvider {
 
         const useConsoleInfo = getConfig('useConsoleInfo') || false;
         const compilerPath = getConfig('compilerPath') || 'g++';
+        const outputPath = (getConfig('outputPath') || '{cppDir}/{baseName}').replace(/\{cppDir\}/g, cppDir)
+                                                                            .replace(/\{baseName\}/g, baseName)
+                                                                            .replace(/\{workdir\}/g, workdir)
+                                                                            .replace(/\{tmpDir\}/g, tmpDir);
 
         // 获取当前文件的配置
         const editor = vscode.window.activeTextEditor;
@@ -870,9 +874,6 @@ class CppCompilerSidebarProvider {
         let useStatic = false;
         let moreCommand = '';
         let customVariable = '';
-        let outputPath = '';
-        let compileCommand = getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"';
-        let staticOption = getConfig('staticOption') || '-static';
 
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             filePath = editor.document.uri.fsPath;
@@ -893,8 +894,6 @@ class CppCompilerSidebarProvider {
             moreCommand = getFileConfig(filePath, 'moreCommand');
             customVariable = getFileConfig(filePath, 'customVariable');
             outputPath = getFileConfig(filePath, 'outputPath');
-            compileCommand = getFileConfig(filePath, 'compileCommand');
-            staticOption = getFileConfig(filePath, 'staticOption');
         }
 
         sidebarPanel.webview.postMessage({
@@ -922,9 +921,7 @@ class CppCompilerSidebarProvider {
             useStaticLinking: useStatic,
             moreCommand: moreCommand,
             customVariable: customVariable,
-            outputPath: outputPath,
-            compileCommand: compileCommand,
-            staticOption: staticOption
+            outputPath: outputPath
         });
     }
 
