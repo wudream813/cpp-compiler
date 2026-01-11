@@ -958,7 +958,7 @@ class CppCompilerSidebarProvider {
                         </div>
                         <div class="text-input-container">
                             <div class="text-input-label">输出文件路径模板</div>
-                            <input type="text" id="outputPath" placeholder="如：{cppDir}/{baseName}" title="输出文件路径模板，可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}">
+                            <input type="text" id="outputPath" placeholder="输出文件路径模板" title="可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}，如：{cppDir}/{baseName}">
                             <div class="save-status" id="outputPathStatus">✓ 已保存</div>
                         </div>
                         <div class="checkbox-container">
@@ -1361,11 +1361,11 @@ class CppCompilerSidebarProvider {
                         const customVariableInput = document.getElementById('outputPath');
                         customVariableInput.disabled = !data.enabled;
                         if (data.enabled) {
-                            customVariableInput.removeAttribute('title');
-                            customVariableInput.placeholder = "输入自定义 var 变量的值";
+                            customVariableInput.placeholder = "输出文件路径模板";
+                            customVariableInput.title = "可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}，如：{cppDir}/{baseName}";
                         } else {
                             customVariableInput.value = "";
-                            customVariableInput.setAttribute('title', '需要打开本地C++文件');
+                            customVariableInput.title = "需要打开本地C++文件";
                             customVariableInput.placeholder = "需要打开本地C++文件";
                         }
 
