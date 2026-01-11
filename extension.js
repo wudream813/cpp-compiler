@@ -435,9 +435,9 @@ async function runProgram(filePath, terminalType) {
         let terminalCommand;
 
         if (process.platform === 'win32') {
-            terminalCommand = await buildTerminalCommandWin(cdCommand, runCommand, moreCommand);
+            terminalCommand = await buildTerminalCommandWin(executablePath, cdCommand, runCommand, moreCommand);
         } else if (process.platform === 'linux') {
-            terminalCommand = await buildTerminalCommandLinux(cdCommand, runCommand, moreCommand);
+            terminalCommand = await buildTerminalCommandLinux(executablePath, cdCommand, runCommand, moreCommand);
         } else {
             terminalCommand = runCommand; // macOS 已经直接是 osascript
         }
@@ -520,9 +520,9 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
     }
 }
 
-async function buildTerminalCommandWin(cdCommand, runCommand, moreCommand) {
-    if(moreCommand)return `start "${exeName}" cmd /c "${cdCommand} & ${runCommand} & echo. & ${moreCommand} & pause"`;
-    return `start "${exeName}" cmd /c "${cdCommand} & ${runCommand} & echo. & pause"`;
+async function buildTerminalCommandWin(exePath, cdCommand, runCommand, moreCommand) {
+    if(moreCommand)return `start "${exePath}" cmd /c "${cdCommand} & ${runCommand} & echo. & ${moreCommand} & pause"`;
+    return `start "${exePath}" cmd /c "${cdCommand} & ${runCommand} & echo. & pause"`;
 }
 
 // ---------------- Linux 构建命令 ----------------
@@ -591,8 +591,8 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
 }
 
 async function buildTerminalCommandLinux(cdCommand, runCommand, moreCommand) {
-    if(moreCommand)return `gnome-terminal -- bash -c "${cdCommand}; ${runCommand}; echo; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
-    return `gnome-terminal -- bash -c "${cdCommand}; ${runCommand}; echo; read -s -n1 -p '按任意键退出...'"`;
+    if(moreCommand)return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; echo; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
+    return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; echo; read -s -n1 -p '按任意键退出...'"`;
 }
 
 // 侧边栏提供者类
