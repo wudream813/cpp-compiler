@@ -158,7 +158,26 @@ function parseFileHeaderConfig(filePath) {
 
         const content = fs.readFileSync(filePath, 'utf8');
         const lines = content.split('\n');
-        const config = {};
+        const baseName = path.basename(filePath, ".cpp");
+        let config = {
+            inputFile: (getConfig('FileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
+            outputFile: (getConfig('FileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
+            unFileInputFile: (getConfig('UnFileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
+            unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
+            useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
+            useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
+            compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
+            runControlCardOpen: getConfig('runControlCardDefaultStatus') || true,
+            advancedCardOpen: getConfig('advancedCardDefaultStatus') || false,
+            fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
+            compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
+            useStaticLinking: getConfig('useStaticDefaultValue') || false,
+            moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
+            customVariable: getConfig('customVariableDefaultValue') || '',
+            outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
+            staticOption: getConfig('staticOption') || '-static',
+            compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
+        };
 
         // 只检查前50行，避免读取整个大文件
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
