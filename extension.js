@@ -182,31 +182,9 @@ function parseFileHeaderConfig(filePath) {
         // 只检查前50行，避免读取整个大文件
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
             const line = lines[i].trim();
-
-            // 跳过空行和非注释行
-            if (!line || (!line.startsWith('//') && !line.startsWith('/*') && !line.startsWith('*'))) {
-                // 如果已经离开注释区域，则停止解析
-                if (i > 20) {
-                    break;
-                }
-                continue;
-            }
-
-            // 处理单行注释 // compileOptions: xxx
-            if (line.startsWith('//')) {
-                const commentLine = line.substring(2).trim();
-                parseConfigLine(commentLine, config);
-            }
-            // 处理多行注释 /* xxx */ 中的行
-            else if (line.startsWith('*')) {
-                const commentLine = line.substring(1).trim();
-                parseConfigLine(commentLine, config);
-            }
-            // 处理多行注释的开始 /*
-            else if (line.startsWith('/*')) {
-                const commentLine = line.substring(2).replace('*/', '').trim();
-                parseConfigLine(commentLine, config);
-            }
+            const pos = line.indexOf(':');
+            if(pos == -1) continue;
+            
         }
 
         return Object.keys(config).length > 0 ? config : null;
