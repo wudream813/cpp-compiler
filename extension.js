@@ -151,6 +151,26 @@ function needsRecompile(filePath, compileOptions, compilerPath) {
 }
 
 function parseFileHeaderConfig(filePath) {
+    const baseName = path.basename(filePath, ".cpp");
+    let config = {
+        inputFile: (getConfig('FileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
+        outputFile: (getConfig('FileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
+        unFileInputFile: (getConfig('UnFileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
+        unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
+        useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
+        useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
+        compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
+        runControlCardOpen: getConfig('runControlCardDefaultStatus') || true,
+        advancedCardOpen: getConfig('advancedCardDefaultStatus') || false,
+        fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
+        compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
+        useStaticLinking: getConfig('useStaticDefaultValue') || false,
+        moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
+        customVariable: getConfig('customVariableDefaultValue') || '',
+        outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
+        staticOption: getConfig('staticOption') || '-static',
+        compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
+    };
     try {
         if (!fs.existsSync(filePath)) {
             return null;
@@ -158,26 +178,6 @@ function parseFileHeaderConfig(filePath) {
 
         const content = fs.readFileSync(filePath, 'utf8');
         const lines = content.split('\n');
-        const baseName = path.basename(filePath, ".cpp");
-        let config = {
-            inputFile: (getConfig('FileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-            outputFile: (getConfig('FileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-            unFileInputFile: (getConfig('UnFileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-            unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-            useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
-            useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
-            compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
-            runControlCardOpen: getConfig('runControlCardDefaultStatus') || true,
-            advancedCardOpen: getConfig('advancedCardDefaultStatus') || false,
-            fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
-            compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
-            useStaticLinking: getConfig('useStaticDefaultValue') || false,
-            moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
-            customVariable: getConfig('customVariableDefaultValue') || '',
-            outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
-            staticOption: getConfig('staticOption') || '-static',
-            compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
-        };
 
         // 只检查前50行，避免读取整个大文件
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
@@ -201,19 +201,56 @@ function parseFileHeaderConfig(filePath) {
                 --start;
             }
 
-            let str = s.slice(start + 1, end + 1);
+            let key = s.slice(start + 1, end + 1);
 
             let i = colon + 1;
             while (i < s.length && s[i] === ' ') i++;
 
-            let key
-        }
+            let val = s.slice(i);
 
-        return Object.keys(config).length > 0 ? config : null;
+            switch (key.toLowerCase()) {
+                case 'compileoptions':
+                    config.compileOptions = value;
+                    break;
+                case 'usestaticlinking':
+                    config.useStaticLinking = value.toLowerCase() === 'true';
+                    break;
+                case 'outputpath':
+                    config.outputPath = value;
+                    break;
+                case 'compilecommand':
+                    config.compileCommand = value;
+                    break;
+                case 'inputfile':
+                    config.inputFile = value;
+                    break;
+                case 'outputfile':
+                    config.outputFile = value;
+                    break;
+                case 'unfileinputfile':
+                    config.unFileInputFile = value;
+                    break;
+                case 'unfileoutputfile':
+                    config.unFileOutputFile = value;
+                    break;
+                case 'usefileredirect':
+                    config.useFileRedirect = value.toLowerCase() === 'true';
+                    break;
+                case 'useunfileredirect':
+                    config.useUnFileRedirect = value.toLowerCase() === 'true';
+                    break;
+                case 'morecommand':
+                    config.moreCommand = value;
+                    break;
+                case 'customvariable':
+                    config.customVariable = value;
+                    break;
+            }
+        }
     } catch (error) {
         ShowWarn(`解析文件 ${filePath} 头部配置时出错: ${error.message}`);
-        return null;
     }
+    return config;
 }
 
 // 获取当前文件的配置
