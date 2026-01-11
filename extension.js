@@ -915,9 +915,9 @@ class CppCompilerSidebarProvider {
             useStaticLinking: useStatic,
             moreCommand: moreCommand,
             customVariable: customVariable,
-            outputPath: filePath ? getFileConfig(filePath, 'outputPath') : '',
-            compileCommand:  || ,
-            staticOption:  ||
+            outputPath: outputPath,
+            compileCommand: compileCommand,
+            staticOption: staticOption
         });
     }
 
@@ -954,6 +954,11 @@ class CppCompilerSidebarProvider {
                             <div class="text-input-label">编译器编译选项</div>
                             <input type="text" id="compileOptions" placeholder="输入编译选项，如：-std=c++17 -Wall">
                             <div class="save-status" id="compileOptionsStatus">✓ 已保存</div>
+                        </div>
+                        <div class="text-input-container">
+                            <div class="text-input-label">输出文件路径模板</div>
+                            <input type="text" id="outputPath" placeholder="如：{cppDir}/{baseName}" title="输出文件路径模板，可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}">
+                            <div class="save-status" id="outputPathStatus">✓ 已保存</div>
                         </div>
                         <div class="checkbox-container">
                             <input type="checkbox" id="staticLinking">
