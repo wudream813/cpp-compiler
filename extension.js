@@ -1358,6 +1358,17 @@ class CppCompilerSidebarProvider {
                             customVariableInput.placeholder = "需要打开本地C++文件";
                         }
 
+                        const customVariableInput = document.getElementById('customVariable');
+                        customVariableInput.disabled = !data.enabled;
+                        if (data.enabled) {
+                            customVariableInput.removeAttribute('title');
+                            customVariableInput.placeholder = "输入自定义 var 变量的值";
+                        } else {
+                            customVariableInput.value = "";
+                            customVariableInput.setAttribute('title', '需要打开本地C++文件');
+                            customVariableInput.placeholder = "需要打开本地C++文件";
+                        }
+
                         const list = [
                             'staticLinking', 'runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect'${process.platform !== 'darwin' ? `, 'useUnFileRedirect'` : ``}
                         ]
