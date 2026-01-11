@@ -1445,7 +1445,7 @@ function activate(context) {
         () => OnlyCompile(1, checkFilePath())
     );
 
-    let OpenTerminalDisposable = vscode.commands.registerCommand(
+    const OpenTerminalDisposable = vscode.commands.registerCommand(
         'dream-cpp-compiler.openInExternalTerminal',
         (uri) => {
             if (!uri || !uri.fsPath) {
@@ -1489,7 +1489,7 @@ function activate(context) {
         statusBarExternal,
         statusBarCompile,
         compileStatus,
-        openInTerminal
+        OpenTerminalDisposable
     );
 }
 
