@@ -194,7 +194,6 @@ function parseFileHeaderConfig(filePath) {
             }
             if (end === -1) continue;
 
-            // 3️⃣ 向前找第一个不是字母的
             let start = end;
             while (start >= 0) {
                 const c = s.charCodeAt(start);
@@ -206,6 +205,8 @@ function parseFileHeaderConfig(filePath) {
 
             let i = colon + 1;
             while (i < s.length && s[i] === ' ') i++;
+
+            let key
         }
 
         return Object.keys(config).length > 0 ? config : null;
