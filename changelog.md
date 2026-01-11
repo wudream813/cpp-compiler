@@ -1,3 +1,5 @@
+# dream-cpp-compiler v7.0.1
+> 修复了根据注释设置编译命令无作用的 bug
 # dream-cpp-compiler v7.0.0
 > 修复了 windows 无法运行的 bug
 > 添加功能：根据注释设置编译命令

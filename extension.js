@@ -185,10 +185,10 @@ function parseFileHeaderConfig(filePath) {
             const pos = line.indexOf(':');
             if(pos === -1) continue;
             let end = -1;
-            for (let i = pos - 1; i >= 0; --i) {
-                const c = s.charCodeAt(i);
+            for (let j = pos - 1; j >= 0; --j) {
+                const c = line.charCodeAt(j);
                 if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
-                    end = i;
+                    end = j;
                     break;
                 }
             }
@@ -196,17 +196,17 @@ function parseFileHeaderConfig(filePath) {
 
             let start = end;
             while (start >= 0) {
-                const c = s.charCodeAt(start);
+                const c = line.charCodeAt(start);
                 if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) break;
                 --start;
             }
 
-            let key = s.slice(start + 1, end + 1);
+            let key = line.slice(start + 1, end + 1);
 
-            let i = colon + 1;
-            while (i < s.length && s[i] === ' ') i++;
+            let j = pos + 1;
+            while (j < line.length && line[j] === ' ') j++;
 
-            let val = s.slice(i);
+            let value = line.slice(j);
 
             switch (key.toLowerCase()) {
                 case 'compileoptions':
