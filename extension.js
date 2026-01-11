@@ -908,7 +908,10 @@ class CppCompilerSidebarProvider {
             compileOptions: compileOptions,
             useStaticLinking: useStatic,
             moreCommand: moreCommand,
-            customVariable: customVariable
+            customVariable: customVariable,
+            outputPath: filePath ? getFileConfig(filePath, 'outputPath') : '',
+            compileCommand: getFileConfig(filePath, 'compileCommand') || getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"',
+            staticOption: getFileConfig(filePath, 'staticOption') || getConfig('staticOption') || '-static'
         });
     }
 
