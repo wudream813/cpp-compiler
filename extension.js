@@ -234,10 +234,10 @@ function parseFileHeaderConfig(filePath) {
                     config.unFileOutputFile = value;
                     break;
                 case 'usefileredirect':
-                    config.useFileRedirect = value.toLowerCase() === 'true';
+                    config.useFileRedirect = (value.toLowerCase() === 'true' || value.toLowerCase() === 'yes' || value.toLowerCase() === 'y' || value === '1');
                     break;
                 case 'useunfileredirect':
-                    config.useUnFileRedirect = value.toLowerCase() === 'true';
+                    config.useUnFileRedirect = (value.toLowerCase() === 'true' || value.toLowerCase() === 'yes' || value.toLowerCase() === 'y' || value === '1');
                     break;
                 case 'morecommand':
                     config.moreCommand = value;
@@ -257,26 +257,7 @@ function parseFileHeaderConfig(filePath) {
 function getFileConfig(filePath, key) {
     if (!fileConfigs[filePath]) {
         // 默认配置
-        const baseName = path.basename(filePath, ".cpp");
-        fileConfigs[filePath] = {
-            inputFile: (getConfig('FileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-            outputFile: (getConfig('FileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-            unFileInputFile: (getConfig('UnFileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-            unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-            useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
-            useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
-            compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
-            runControlCardOpen: getConfig('runControlCardDefaultStatus') || true,
-            advancedCardOpen: getConfig('advancedCardDefaultStatus') || false,
-            fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
-            compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
-            useStaticLinking: getConfig('useStaticDefaultValue') || false,
-            moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
-            customVariable: getConfig('customVariableDefaultValue') || '',
-            outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
-            staticOption: getConfig('staticOption') || '-static',
-            compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
-        };
+        fileConfigs[filePath] = parseFileHeaderConfig(filePath);
     }
     if(key == 'outputPath') {
         const baseName = path.basename(filePath, ".cpp");
@@ -298,26 +279,7 @@ function getFileConfig(filePath, key) {
 function setFileConfig(filePath, key, value) {
     if (!fileConfigs[filePath]) {
         // 默认配置
-        const baseName = path.basename(filePath, path.extname(filePath));
-        fileConfigs[filePath] = {
-            inputFile: (getConfig('FileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-            outputFile: (getConfig('FileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-            unFileInputFile: (getConfig('UnFileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-            unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-            useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
-            useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
-            compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
-            runControlCardOpen: getConfig('runControlCardDefaultStatus') || true,
-            advancedCardOpen: getConfig('advancedCardDefaultStatus') || false,
-            fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
-            compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
-            useStaticLinking: getConfig('useStaticDefaultValue') || false,
-            moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
-            customVariable: getConfig('customVariableDefaultValue') || '',
-            outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
-            staticOption: getConfig('staticOption') || '-static',
-            compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
-        };
+        fileConfigs[filePath] = parseFileHeaderConfig(filePath);
     }
     fileConfigs[filePath][key] = value;
 }

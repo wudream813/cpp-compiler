@@ -1,3 +1,8 @@
+# dream-cpp-compiler v7.0.0
+> 修复了 windows 无法运行的 bug
+> 添加功能：根据注释设置编译命令
+> 添加功能：设置输出可执行文件的路径
+> 添加功能：设置编译模板，用于适配其他编译器
 # dream-cpp-compiler v6.1.0
 > 修复了 linux 无法运行的 bug
 # dream-cpp-compiler v6.0.0

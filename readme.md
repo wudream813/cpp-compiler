@@ -23,10 +23,11 @@
 - 状态栏快捷编译
 - 快捷文件读写
 - 支持所有操作系统
-- 非 macOS 支持使用 ConsoleInfo.exe 进行输出，还支持反文件读写
+- 非 macOS 支持使用 ConsoleInfo 进行输出，还支持反文件读写
 - 自定义编译选项
 - 设置编译器路径
 - 增强资源管理器
+- 根据文件头部文件注释自动设置编译选项等
 
 <details open>
 <summary>
@@ -42,11 +43,6 @@
 <td>编译且运行 C++ 程序</td>
 <td>✅</td>
 <td>✅</td>
-</tr>
-<tr>
-<td>调试 C++ 程序</td>
-<td>✅</td>
-<td>❌</td>
 </tr>
 <tr>
 <td>设置 C++ 程序编译选项</td>
@@ -88,12 +84,64 @@
 <td>❌</td>
 <td>✅</td>
 </tr>
+<tr>
+<td>自动根据注释设置编译命令等</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
 </table>
 </details>
 
-<details open>
+<strong>警告: 由于编译器设置的特殊性，因此只在用户设置中生效，工作区的设置不会被拓展使用</strong>
+
+<details>
 <summary>
- 警告
+ 关于 ConsoleInfo
 </summary><br/>
-<strong>由于编译器设置的特殊性，因此只在用户设置中生效，工作区的设置不会被拓展使用</strong>
+能够得知运行一个程序的内存峰值、总执行时间、CPU内核时间、CPU用户时间、程序返回值
+</details>
+
+<details>
+<summary>
+ 关于文件重定向、反文件重定向
+</summary><br/>
+常用于竞赛。
+
+文件重定向: 能够在程序不进行文件读写时，以文件输入输出
+
+反文件重定向: 能够在程序进行文件读写时，从控制台输入输出
+
+配合使用: 将程序输入和输出的文件换为另一个
+</details>
+
+<details>
+<summary>
+ 关于根据注释设置编译命令等
+</summary><br/>
+可用于工程。
+
+在文件头部（前 50 行）打注释，类型为：`key : val`，将会自动使用描述的设置。
+
+如：
+```cpp
+// compileoptions : -std=c++14 -O2
+// outputpath : program.exe
+int main(){
+    return 0;
+}
+```
+
+可以使用：
+- `compileoptions` 代表编译命令
+- `usestaticlinking` 是否静态编译
+- `outputpath` 代表输出路径
+- `compilecommand` 编译的命令
+- `inputfile` 输入文件
+- `outputfile` 输出文件
+- `unfileinputfile` 反文件读写的输入文件
+- `unfileoutputfile` 反文件读写的输出文件
+- `usefileredirect` 启用文件读写
+- `useunfileredirect` 启用反文件读写
+- `morecommand` 运行的额外命令
+- `customvariable` 自定义变量 var 的值
 </details>
