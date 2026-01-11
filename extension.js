@@ -183,8 +183,28 @@ function parseFileHeaderConfig(filePath) {
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
             const line = lines[i].trim();
             const pos = line.indexOf(':');
-            if(pos == -1) continue;
-            
+            if(pos === -1) continue;
+            let end = -1;
+            for (let i = colposon - 1; i >= 0; --i) {
+                const c = s.charCodeAt(i);
+                if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+                    end = i;
+                    break;
+                }
+            }
+            if (end === -1) continue;
+
+            // 3️⃣ 向前找第一个不是字母的
+            let start = -1;
+            for (let i = end - 1; i >= 0; --i) {
+                const c = s.charCodeAt(i);
+                if (!(c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+                    start = i;
+                    break;
+                }
+            }
+
+            let str = 
         }
 
         return Object.keys(config).length > 0 ? config : null;
