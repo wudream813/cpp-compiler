@@ -262,7 +262,7 @@
 				"dream-cpp-compiler.compileCommand": {
 					"type": "string",
 					"default": "\"{cPath}\" \"{cppPath}\" {option} -o \"{outPath}\"",
-					"description": "编译命令，使用 {cPath} 代表编译器路径，{cppPath} 代表源文件路径，{outPath} 代表输出的可执行文件位置，{option} 代表编译选项 (如果是 cl 编译器，需调整为)"
+					"description": "编译命令，使用 {cPath} 代表编译器路径，{cppPath} 代表源文件路径，{outPath} 代表输出的可执行文件位置，{option} 代表编译选项 (如果是 cl 编译器，需调整为 `\"{cPath}\" \"{cppPath}\" {option} -Fe:\"{outPath}\"`)"
 				}
 			}
 		}
