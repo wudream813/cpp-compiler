@@ -1954,6 +1954,39 @@ class CppCompilerSidebarProvider {
                     }, 0);
                 });
 
+                // 保存编辑
+                document.getElementById('saveEdit').addEventListener('click', function() {
+                    if (currentEditingInput && currentInputId) {
+                        // 获取用户编辑的原始模板
+                        const finalTemplate = document.getElementById('templateInput').value;
+
+                        // 【关键修改】使用辅助函数更新UI：存原始值，显预览值
+                        updateInputWithRaw(currentInputId, finalTemplate);
+
+                        // 发送保存消息到扩展端（发送的是原始模板）
+                        const messageMap = {
+                            'moreCommand': 'updateMoreCommand',
+                            'inputFile': 'updateInputFile',
+                            'outputFile': 'updateOutputFile',
+                            'unFileInputFile': 'updateUnFileInputFile',
+                            'unFileOutputFile': 'updateUnFileOutputFile',
+                            'outputPath': 'updateOutputPath'
+                        };
+
+                        const messageType = messageMap[currentInputId];
+                        if (messageType && filePath) {
+                            vscode.postMessage({
+                                type: messageType,
+                                filePath: filePath,
+                                value: finalTemplate  // 发送原始模板给后端保存
+                            });
+
+                            showSaveStatus(currentInputId + 'Status');
+                        }
+                    }
+                    closeVariableEditor();
+                });
+
                 document.getElementById('closeModal').addEventListener('click', closeVariableEditor);
                 document.getElementById('cancelEdit').addEventListener('click', closeVariableEditor);
 
