@@ -2098,6 +2098,64 @@ class CppCompilerSidebarProvider {
                         setTimeout(function() { el.classList.remove('visible'); }, 3000);
                     }
                 }
+
+                // ==========================================
+                // 7. 新增保存按钮逻辑
+                // ==========================================
+
+                // 收集当前配置数据的函数
+                // mode: 'raw' (模板/带变量) 或 'cooked' (计算值/绝对路径)
+                function collectAndSendConfig(mode) {
+                    if (!filePath) return;
+
+                    const configToSave = {};
+
+                    // 1. 获取布尔值设置 (Checkbox)
+                    configToSave['useStaticLinking'] = document.getElementById('staticLinking').checked.toString();
+                    configToSave['useFileRedirect'] = document.getElementById('useFileRedirect').checked.toString();
+                    configToSave['useUnFileRedirect'] = document.getElementById('useUnFileRedirect').checked.toString();
+
+                    // 2. 获取编译选项 (直接取值)
+                    configToSave['compileOptions'] = document.getElementById('compileOptions').value;
+
+                    // 3. 获取带变量的字段
+                    const variableFields = [
+                        'inputFile', 'outputFile',
+                        'unFileInputFile', 'unFileOutputFile',
+                        'outputPath', 'moreCommand', 'customVariable'
+                    ];
+
+                    variableFields.forEach(function(id) {
+                        if (mode === 'raw') {
+                            // 保存模板：从缓存中取原始字符串 (例如 "{cppDir}/{baseName}.exe")
+                            // 如果缓存中没有(undefined)，回退到空字符串
+                            configToSave[id] = RawConfigCache[id] !== undefined ? RawConfigCache[id] : '';
+                        } else {
+                            // 保存设置：从界面取计算后的值 (例如 "C:/Test/main.exe")
+                            // 注意：这里我们重新计算一遍以确保是最新的
+                            const raw = RawConfigCache[id] !== undefined ? RawConfigCache[id] : '';
+                            configToSave[id] = processor.replace(raw, id);
+                        }
+                    });
+
+                    // 发送给后端
+                    vscode.postMessage({
+                        type: 'saveConfigToFile',
+                        filePath: filePath,
+                        config: configToSave,
+                        mode: mode //以此区分提示信息
+                    });
+                }
+
+                // 按钮1: 保存设置 (替换变量后，保存绝对路径)
+                document.getElementById('saveSettings').addEventListener('click', function() {
+                    collectAndSendConfig('cooked');
+                });
+
+                // 按钮2: 保存模板设置 (保留变量)
+                document.getElementById('saveTemplateSettings').addEventListener('click', function() {
+                    collectAndSendConfig('raw');
+                });
             </script>
         </body>
 
