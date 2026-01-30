@@ -253,6 +253,106 @@ function parseFileHeaderConfig(filePath) {
     return config;
 }
 
+function updateCppConfigFile(filePath, newConfig) {
+    if (!fs.existsSync(filePath)) return;
+
+    let content = fs.readFileSync(filePath, 'utf8');
+    let lines = content.split('\n');
+
+    // 记录已经更新过的 Key，用于最后判断是否需要新增
+    const updatedKeys = new Set();
+
+    // 限制扫描前50行 (与读取逻辑一致)
+    const scanLimit = Math.min(lines.length, 50);
+
+    for (let i = 0; i < scanLimit; i++) {
+        // 获取原始行（保留缩进）
+        const line = lines[i];
+        // 这里的 trim 仅用于查找逻辑，修改时我们使用 raw line
+        const trimmedLine = line.trim();
+
+        // --- 开始复刻你的读取逻辑 ---
+        const pos = trimmedLine.indexOf(':');
+        if (pos === -1) continue;
+
+        let end = -1;
+        // 倒序寻找 Key 的结束位置
+        for (let j = pos - 1; j >= 0; --j) {
+            const c = trimmedLine.charCodeAt(j);
+            if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+                end = j;
+                break;
+            }
+        }
+        if (end === -1) continue;
+
+        let start = end;
+        // 倒序寻找 Key 的开始位置
+        while (start >= 0) {
+            const c = trimmedLine.charCodeAt(start);
+            if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) break;
+            --start;
+        }
+
+        // 提取 Key (例如 "InputFile")
+        const foundKeyRaw = trimmedLine.slice(start + 1, end + 1);
+        const foundKeyLower = foundKeyRaw.toLowerCase();
+        // --- 复刻结束 ---
+
+        // 查找 newConfig 中是否有对应的 Key (忽略大小写)
+        let matchingConfigKey = null;
+        for (const cfgKey in newConfig) {
+            if (cfgKey.toLowerCase() === foundKeyLower) {
+                matchingConfigKey = cfgKey;
+                break;
+            }
+        }
+
+        if (matchingConfigKey) {
+            const newValue = newConfig[matchingConfigKey];
+
+            // --- 构造新行 ---
+            // 我们需要保留冒号及其之前的所有内容 (包括 "// " 和缩进)
+
+            // 找到冒号在 *原始行* 中的位置
+            // 为了防止注释前面有其他冒号，我们使用 substring 匹配
+            // (稍微简化一点，直接找第一个冒号通常在 Config 格式里是安全的，或者基于 trimmedLine 的 pos 推算)
+            const colonIndex = line.indexOf(':');
+
+            if (colonIndex !== -1) {
+                // 保留前缀: "    // InputFile:"
+                const prefix = line.substring(0, colonIndex + 1);
+
+                // 拼接新值
+                // 注意：如果原文件有 \r (CRLF)，这里保持一致性简单处理，join 时会处理换行
+                lines[i] = `${prefix} ${newValue}`;
+                if (line.endsWith('\r')) lines[i] += '\r';
+
+                updatedKeys.add(matchingConfigKey);
+            }
+        }
+    }
+
+    // 处理文件中不存在的新配置 -> 插入到顶部
+    const keysToInsert = [];
+    for (const key in newConfig) {
+        if (!updatedKeys.has(key)) {
+            const val = newConfig[key];
+            // 过滤空值，避免插入无意义的行
+            if (val !== undefined && val !== null && val !== '') {
+                keysToInsert.push(`// ${key}: ${val}`);
+            }
+        }
+    }
+
+    if (keysToInsert.length > 0) {
+        lines.unshift(...keysToInsert);
+    }
+
+    // 写回文件
+    fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+}
+
 // 获取当前文件的配置
 function getFileConfig(filePath, key) {
     if (!fileConfigs[filePath]) {
