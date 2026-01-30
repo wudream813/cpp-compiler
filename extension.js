@@ -259,19 +259,6 @@ function getFileConfig(filePath, key) {
         // 默认配置
         fileConfigs[filePath] = parseFileHeaderConfig(filePath);
     }
-    if(key == 'outputPath') {
-        const baseName = path.basename(filePath, ".cpp");
-        const cppDir = path.dirname(filePath);
-        const workdir = vscode.workspace.workspaceFolders ?
-            vscode.workspace.workspaceFolders[0].uri.fsPath : cppDir;
-        const tmpDir = os.tmpdir();
-
-        return fileConfigs[filePath][key]
-            .replace(/\{cppDir\}/g, cppDir)
-            .replace(/\{baseName\}/g, baseName)
-            .replace(/\{workdir\}/g, workdir)
-            .replace(/\{tmpDir\}/g, tmpDir);
-    }
     return fileConfigs[filePath][key];
 }
 
