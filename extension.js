@@ -1676,26 +1676,13 @@ class CppCompilerSidebarProvider {
 
             <script>
                 const vscode = acquireVsCodeApi();
-                let filePath = '', baseName = '';
-
-                // ==========================================
-                // 0. 全局数据缓存 (核心修复点)
-                // ==========================================
-                // 使用 JS 对象存储原始值，不再依赖 DOM dataset，防止被 UI 显示值污染
-                const RawConfigCache = {
-                    'moreCommand': '',
-                    'inputFile': '',
-                    'outputFile': '',
-                    'unFileInputFile': '',
-                    'unFileOutputFile': '',
-                    'outputPath': '',
-                    'customVariable': ''
-                };
+                let filePath = '', baseName = ''; // 全局状态
 
                 // ==========================================
                 // 1. 配置区域
                 // ==========================================
                 const VARIABLE_CONFIG = {
+                    // 定义变量获取逻辑
                     definitions: {
                         '{var}': {
                             desc: '自定义变量的值',
@@ -1705,7 +1692,7 @@ class CppCompilerSidebarProvider {
                             desc: '文件名(无后缀)',
                             valueFn: function(ctx) { return ctx.baseName; }
                         },
-                        '{baseName}': { // 兼容旧版
+                        '{baseName}': {
                             desc: '文件名(无后缀)',
                             valueFn: function(ctx) { return ctx.baseName; }
                         },
@@ -1723,11 +1710,12 @@ class CppCompilerSidebarProvider {
                         }
                     },
 
+                    // 定义变量组
                     groups: {
                         // 通用组：包含 {var}
                         'common': ['{var}', '{base}'],
 
-                        // 【修复点1】变量定义专用组：严禁包含 {var}，防止递归死循环
+                        // 【修改点1】变量定义组：专门给 customVariable 使用，严禁包含 {var} 防止递归
                         'varDef': ['{base}', '{cppDir}', '{workdir}'],
 
                         // 文件操作组
@@ -1737,9 +1725,13 @@ class CppCompilerSidebarProvider {
                         'pathGen': ['{cppDir}', '{baseName}', '{workdir}', '{tmpDir}']
                     },
 
+                    // 绑定输入框规则
                     inputRules: {
                         'moreCommand': 'common',
-                        'customVariable': 'varDef', // 自定义变量现在使用 varDef 组
+
+                        // 【修改点2】自定义变量使用 varDef 组 (不含 {var})
+                        'customVariable': 'varDef',
+
                         'inputFile': 'fileOps',
                         'outputFile': 'fileOps',
                         'unFileInputFile': 'fileOps',
@@ -1786,7 +1778,7 @@ class CppCompilerSidebarProvider {
                         if (!template) return '';
 
                         const allowedVars = this.getAllowedVariables(inputId || 'common');
-                        // 按长度排序，优先替换长变量名
+                        // 按长度排序防止部分匹配
                         allowedVars.sort(function(a, b) { return b.name.length - a.name.length; });
 
                         let result = template;
@@ -1796,7 +1788,6 @@ class CppCompilerSidebarProvider {
                             const def = VARIABLE_CONFIG.definitions[v.name];
                             if (def) {
                                 const value = def.valueFn(this.context) || '';
-                                // 全局替换
                                 result = result.split(v.name).join(value);
                             }
                         }
@@ -1810,22 +1801,14 @@ class CppCompilerSidebarProvider {
                 // 3. UI 交互逻辑
                 // ==========================================
 
-                // 更新界面：存入全局缓存，计算并显示预览值
                 function updateInputWithRaw(elementId, rawValue) {
-                    // 1. 存入唯一真理源 (Cache)
-                    // 即使 rawValue 是空字符串也要存，防止变成 undefined
-                    RawConfigCache[elementId] = rawValue === undefined || rawValue === null ? '' : rawValue;
-
-                    // 2. 更新界面显示 (UI)
                     const element = document.getElementById(elementId);
                     if (!element) return;
 
-                    // 计算预览值
-                    const previewValue = processor.replace(RawConfigCache[elementId], elementId);
-                    element.value = previewValue;
-
-                    // 可选：为了调试方便，依然可以在 DOM 上留个标记，但不作为逻辑依据
-                    element.setAttribute('data-raw-debug', RawConfigCache[elementId]);
+                    // 存原始值 (Truth)
+                    element.dataset.rawValue = rawValue || '';
+                    // 显预览值 (Display)
+                    element.value = processor.replace(rawValue || '', elementId);
                 }
 
                 let currentEditingInput = null;
@@ -1837,13 +1820,13 @@ class CppCompilerSidebarProvider {
 
                     document.getElementById('modalTitle').textContent = '编辑 ' + currentInputId;
 
-                    // 【修复点2】强制预览框只读
+                    // 【修改点3】强制预览框只读，并设置灰色背景，防止用户误编辑预览内容
                     const previewBox = document.getElementById('previewInput');
                     previewBox.readOnly = true;
                     previewBox.style.backgroundColor = 'var(--vscode-editor-inactiveSelectionBackground)';
                     previewBox.style.cursor = 'not-allowed';
+                    previewBox.title = '预览结果不可直接编辑，请编辑上方的模板框';
 
-                    // 生成变量按钮
                     const allowedVars = processor.getAllowedVariables(currentInputId);
                     const buttonsContainer = document.getElementById('variableButtons');
                     buttonsContainer.innerHTML = '';
@@ -1862,11 +1845,9 @@ class CppCompilerSidebarProvider {
                         });
                     }
 
-                    // 【修复点3】从全局缓存读取原始值，绝对不读取 input.value
-                    // 如果缓存里没有（比如刚加载），默认为空字符串
-                    const rawVal = RawConfigCache[currentInputId] !== undefined ? RawConfigCache[currentInputId] : '';
+                    // 优先读取 dataset 中的原始值
+                    const rawVal = inputElement.dataset.rawValue !== undefined ? inputElement.dataset.rawValue : inputElement.value;
 
-                    // 设置模态框内容
                     document.getElementById('templateInput').value = rawVal;
                     document.getElementById('previewInput').value = processor.replace(rawVal, currentInputId);
 
@@ -1890,6 +1871,7 @@ class CppCompilerSidebarProvider {
                 }
 
                 function updatePreview() {
+                    // 始终基于 templateInput (原始模板) 计算预览
                     const raw = document.getElementById('templateInput').value;
                     const preview = processor.replace(raw, currentInputId);
                     document.getElementById('previewInput').value = preview;
@@ -1912,13 +1894,13 @@ class CppCompilerSidebarProvider {
 
                 document.getElementById('saveEdit').addEventListener('click', function() {
                     if (currentEditingInput && currentInputId) {
-                        // 获取用户编辑的原始模板
+                        // 【关键】始终获取 templateInput 的值 (原始模板)，而不是 previewInput
                         const finalRaw = document.getElementById('templateInput').value;
 
-                        // 1. 更新缓存和界面
+                        // 1. 更新前端 UI: 存 raw, 显 preview
                         updateInputWithRaw(currentInputId, finalRaw);
 
-                        // 2. 发送原始值给后端保存
+                        // 2. 发送 raw 值给后端保存
                         const messageMap = {
                             'moreCommand': 'updateMoreCommand',
                             'inputFile': 'updateInputFile',
@@ -1941,7 +1923,7 @@ class CppCompilerSidebarProvider {
                     closeVariableEditor();
                 });
 
-                // 绑定聚焦事件
+                // 绑定点击/聚焦事件
                 Object.keys(VARIABLE_CONFIG.inputRules).forEach(function(id) {
                     const el = document.getElementById(id);
                     if (el) {
@@ -1972,15 +1954,15 @@ class CppCompilerSidebarProvider {
                             tmpDir: data.tmpDir
                         });
 
-                        // 刷新界面：使用缓存中的原始值重新计算预览值
-                        Object.keys(RawConfigCache).forEach(function(id) {
-                            const rawVal = RawConfigCache[id];
-                            if (rawVal !== undefined) {
-                                updateInputWithRaw(id, rawVal);
+                        // 刷新所有带变量输入框的显示
+                        Object.keys(VARIABLE_CONFIG.inputRules).forEach(function(id) {
+                            const el = document.getElementById(id);
+                            // 仅当已有原始值时刷新，避免覆盖
+                            if (el && el.dataset.rawValue !== undefined) {
+                                updateInputWithRaw(id, el.dataset.rawValue);
                             }
                         });
 
-                        // 如果模态框开着，刷新模态框预览
                         if (document.getElementById('variableEditorModal').style.display === 'flex') {
                             updatePreview();
                         }
@@ -1991,14 +1973,12 @@ class CppCompilerSidebarProvider {
                         document.getElementById('compilerPath').value = data.compilerPath;
 
                         if (data.isCppFile) {
-                            // 普通输入框
                             document.getElementById('compileOptions').value = data.compileOptions;
                             document.getElementById('staticLinking').checked = data.useStaticLinking;
                             document.getElementById('useFileRedirect').checked = data.useFileRedirect;
                             document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
 
-                            // 带变量的输入框：更新缓存和界面
-                            // 假设 data.xxxx 传过来的是 {var} 形式的源码
+                            // 使用 updateInputWithRaw 统一处理带变量字段
                             updateInputWithRaw('inputFile', data.inputFile);
                             updateInputWithRaw('outputFile', data.outputFile);
                             updateInputWithRaw('unFileInputFile', data.unFileInputFile);
@@ -2008,7 +1988,6 @@ class CppCompilerSidebarProvider {
                             updateInputWithRaw('outputPath', data.outputPath);
                         }
 
-                        // 恢复折叠状态
                         ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(function(id) {
                             const open = data[id + "CardOpen"];
                             const content = document.getElementById(id + "Content");
@@ -2022,13 +2001,12 @@ class CppCompilerSidebarProvider {
 
                     if (data.type === 'updateButtonStates') {
                         const enabled = data.enabled;
-                        // 按钮状态
-                        ['runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'].forEach(function(id) {
+                        const ids = ['runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
+                        ids.forEach(function(id) {
                             const el = document.getElementById(id);
                             if(el) el.disabled = !enabled;
                         });
 
-                        // 输入框状态
                         const inputIds = Object.keys(VARIABLE_CONFIG.inputRules).concat(['compileOptions']);
                         inputIds.forEach(function(id) {
                             const el = document.getElementById(id);
