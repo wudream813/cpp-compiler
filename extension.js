@@ -1979,13 +1979,13 @@ class CppCompilerSidebarProvider {
                             document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
 
                             // 使用 updateInputWithRaw 统一处理带变量字段
-                            updateInputWithRaw('inputFile', data.inputFileRaw);
-                            updateInputWithRaw('outputFile', data.outputFileRaw);
-                            updateInputWithRaw('unFileInputFile', data.unFileInputFileRaw);
-                            updateInputWithRaw('unFileOutputFile', data.unFileOutputFileRaw);
-                            updateInputWithRaw('moreCommand', data.moreCommandRaw);
-                            updateInputWithRaw('customVariable', data.customVariableRaw);
-                            updateInputWithRaw('outputPath', data.outputPathRaw);
+                            updateInputWithRaw('inputFile', data.inputFile);
+                            updateInputWithRaw('outputFile', data.outputFile);
+                            updateInputWithRaw('unFileInputFile', data.unFileInputFile);
+                            updateInputWithRaw('unFileOutputFile', data.unFileOutputFile);
+                            updateInputWithRaw('moreCommand', data.moreCommand);
+                            updateInputWithRaw('customVariable', data.customVariable);
+                            updateInputWithRaw('outputPath', data.outputPath);
                         }
 
                         ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(function(id) {
