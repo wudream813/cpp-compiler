@@ -987,6 +987,23 @@ class CppCompilerSidebarProvider {
                     this.updateWebviewContent();
                     break;
                 }
+
+                case 'saveConfigToFile': {
+                    try {
+                        updateCppConfigFile(data.filePath, data.config);
+
+                        const msg = data.mode === 'raw'
+                            ? `已保存模板配置 (保留变量)`
+                            : `已保存当前设置 (绝对路径)`;
+
+                        vscode.window.showInformationMessage(msg);
+
+                        // 可选：保存后如果你想刷新界面，可以调用 updateWebviewContent
+                    } catch (e) {
+                        vscode.window.showErrorMessage(`保存失败: ${e.message}`);
+                    }
+                    break;
+                }
             }
         });
 
