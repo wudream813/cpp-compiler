@@ -1599,6 +1599,14 @@ class CppCompilerSidebarProvider {
                             <input type="text" id="customVariable" placeholder="输入自定义 var 变量的值">
                             <div class="save-status" id="customVariableStatus">✓ 已保存</div>
                         </div>
+
+                        <>
+                        <div class="save-actions-section">
+                            <div class="button-group">
+                                <button id="saveSettings">保存设置</button>
+                                <button id="saveTemplateSettings" title="将当前设置保存为全局模板">保存模板设置</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
