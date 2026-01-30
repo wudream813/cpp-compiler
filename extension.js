@@ -2012,7 +2012,9 @@ class CppCompilerSidebarProvider {
                             const el = document.getElementById(id);
                             if(el) {
                                 el.disabled = !enabled;
-                                if(!enabled) el.value = '';
+                                if(!enabled) {
+                                el.value = '';
+                        }
                             }
                         });
                     }
