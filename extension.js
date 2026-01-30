@@ -1675,269 +1675,188 @@ class CppCompilerSidebarProvider {
             </div>
 
             <script>
-                // 初始化可折叠功能
-                // VSCode webview API
                 const vscode = acquireVsCodeApi();
+                let filePath = '', baseName = ''; // 全局状态
 
-                // 存储扩展端传过来的当前文件路径
-                let filePath = '', baseName = '';
+                // ==========================================
+                // 1. 配置区域 (只需修改这里即可控制一切)
+                // ==========================================
+                const VARIABLE_CONFIG = {
+                    definitions: {
+                        '{var}': {
+                            desc: '自定义变量的值',
+                            valueFn: (ctx) => ctx.varValue
+                        },
+                        '{base}': {
+                            desc: '文件名(无后缀)',
+                            valueFn: (ctx) => ctx.baseName
+                        },
+                        '{baseName}': {
+                            desc: '文件名(无后缀)',
+                            valueFn: (ctx) => ctx.baseName
+                        },
+                        '{cppDir}': {
+                            desc: '源文件所在目录',
+                            valueFn: (ctx) => ctx.cppDir
+                        },
+                        '{workdir}': {
+                            desc: '工作区目录',
+                            valueFn: (ctx) => ctx.workdir
+                        },
+                        '{tmpDir}': {
+                            desc: '系统临时目录',
+                            valueFn: (ctx) => ctx.tmpDir
+                        }
+                    },
 
-                // 变量处理器类
+                    groups: {
+                        'common': ['{var}', '{base}'],
+                        'fileOps': ['{var}', '{base}', '{cppDir}'],
+                        'pathGen': ['{cppDir}', '{baseName}', '{workdir}', '{tmpDir}']
+                    },
+
+                    inputRules: {
+                        'moreCommand': 'common',
+                        'customVariable': 'common',
+                        'inputFile': 'fileOps',
+                        'outputFile': 'fileOps',
+                        'unFileInputFile': 'fileOps',
+                        'unFileOutputFile': 'fileOps',
+                        'outputPath': 'pathGen'
+                    }
+                };
+
+                // ==========================================
+                // 2. 核心逻辑类
+                // ==========================================
                 class VariableProcessor {
                     constructor() {
-                        this.variableConfigs = {};
-                        this.currentContext = {};
-                        this.initDefaultConfigs();
+                        this.context = {};
                     }
 
-                    // 初始化不同类型的变量配置
-                    initDefaultConfigs() {
-                        // 通用变量（所有输入框都可用）
-                        this.variableConfigs['common'] = {
-                            hint: '通用变量：{var}（自定义变量）、{base}（文件名）',
-                            variables: [
-                                { name: '{var}', description: '自定义变量的值' },
-                                { name: '{base}', description: '当前C++文件的不带扩展名的文件名' }
-                            ]
-                        };
-
-                        // 输出路径专用变量
-                        this.variableConfigs['outputPath'] = {
-                            hint: '可用变量：{cppDir}（源文件目录）、{baseName}（不带扩展名的文件名）、{workdir}（工作目录）、{tmpDir}（临时目录）',
-                            variables: [
-                                { name: '{cppDir}', description: '源文件所在目录' },
-                                { name: '{baseName}', description: '不带扩展名的文件名' },
-                                { name: '{workdir}', description: '工作目录（未打开则同源文件目录）' },
-                                { name: '{tmpDir}', description: '临时目录' }
-                            ]
-                        };
-
-                        // 文件操作变量
-                        this.variableConfigs['fileOperations'] = {
-                            hint: '可用变量：{var}（自定义变量）、{base}（文件名）、{cppDir}（源文件目录）',
-                            variables: [
-                                { name: '{var}', description: '自定义变量的值' },
-                                { name: '{base}', description: '当前C++文件的不带扩展名的文件名' },
-                                { name: '{cppDir}', description: '源文件所在目录' }
-                            ]
-                        };
+                    setContext(newContext) {
+                        this.context = Object.assign({}, this.context, newContext);
                     }
 
-                    // 设置当前上下文（文件路径、自定义变量等）
-                    setContext(context) {
-                        this.currentContext = context;
-                    }
+                    getAllowedVariables(inputId) {
+                        const rule = VARIABLE_CONFIG.inputRules[inputId] || 'common';
 
-                    // 根据输入框类型获取配置
-                    getConfigForInput(inputId) {
-                        if (inputId === 'outputPath') {
-                            return this.variableConfigs['outputPath'];
+                        let varNames = [];
+                        if (Array.isArray(rule)) {
+                            varNames = rule;
+                        } else if (VARIABLE_CONFIG.groups[rule]) {
+                            varNames = VARIABLE_CONFIG.groups[rule];
+                        } else {
+                            varNames = VARIABLE_CONFIG.groups['common'];
                         }
-                        if (['inputFile', 'outputFile', 'unFileInputFile', 'unFileOutputFile'].includes(inputId)) {
-                            return this.variableConfigs['fileOperations'];
-                        }
-                        if (inputId === 'moreCommand') {
-                            return this.variableConfigs['common'];
-                        }
-                        return this.variableConfigs['common'];
+
+                        return varNames
+                            .filter(name => VARIABLE_CONFIG.definitions[name])
+                            .map(name => ({
+                                name: name,
+                                description: VARIABLE_CONFIG.definitions[name].desc
+                            }));
                     }
 
-                    // 替换所有变量
-                    replaceVariables(template) {
+                    replace(template, inputId) {
                         if (!template) return '';
 
+                        const allowedVars = this.getAllowedVariables(inputId || 'common');
+                        allowedVars.sort((a, b) => b.name.length - a.name.length);
+
                         let result = template;
-                        const context = this.currentContext;
 
-                        // 替换所有可能的变量
-                        const replacements = {
-                            '{var}': context.varValue || '',
-                            '{base}': context.baseName || '',
-                            '{cppDir}': context.cppDir || '',
-                            '{baseName}': context.baseName || '',
-                            '{workdir}': context.workdir || '',
-                            '{tmpDir}': context.tmpDir || ''
-                        };
-
-                        for (const [variable, value] of Object.entries(replacements)) {
-                            result = result.replace(new RegExp(this.escapeRegExp(variable), 'g'), value);
-                        }
-
-                        return result;
-                    }
-
-                    // 从预览值反向解析模板
-                    parseTemplateFromPreview(template, preview, inputId) {
-                        if (template === preview) return template;
-
-                        const config = this.getConfigForInput(inputId);
-                        let result = preview;
-                        const context = this.currentContext;
-
-                        // 按照变量长度降序排序，避免替换冲突
-                        const sortedVariables = [...config.variables].sort((a, b) => b.name.length - a.name.length);
-
-                        for (const variable of sortedVariables) {
-                            const varName = variable.name;
-                            const varValue = this.getVariableValue(varName, context);
-
-                            if (varValue && result.includes(varValue)) {
-                                // 使用正则确保只替换完整的单词边界
-                                const regex = new RegExp(\`\\\\b\${this.escapeRegExp(varValue)}\\\\b\`, 'g');
-                                result = result.replace(regex, varName);
+                        for (const v of allowedVars) {
+                            const def = VARIABLE_CONFIG.definitions[v.name];
+                            if (def) {
+                                const value = def.valueFn(this.context) || '';
+                                result = result.split(v.name).join(value);
                             }
                         }
-
                         return result;
-                    }
-
-                    // 获取变量对应的值
-                    getVariableValue(varName, context) {
-                        const mapping = {
-                            '{var}': context.varValue,
-                            '{base}': context.baseName,
-                            '{cppDir}': context.cppDir,
-                            '{baseName}': context.baseName,
-                            '{workdir}': context.workdir,
-                            '{tmpDir}': context.tmpDir
-                        };
-                        return mapping[varName] || '';
-                    }
-
-                    escapeRegExp(string) {
-                        return string.replace(/[.*+?^\${}()|[\]\\]/g, '\\\\\\\\\$&');
                     }
                 }
 
-                // 创建全局处理器实例
-                const variableProcessor = new VariableProcessor();
+                const processor = new VariableProcessor();
 
-                // 辅助函数：更新输入框（同时处理原始值存储和预览值显示）
+                // ==========================================
+                // 3. UI 交互逻辑
+                // ==========================================
+
                 function updateInputWithRaw(elementId, rawValue) {
                     const element = document.getElementById(elementId);
                     if (!element) return;
 
-                    // 1. 将原始模板存储在 data 属性中 (Truth source)
                     element.dataset.rawValue = rawValue || '';
-
-                    // 2. 计算预览值并显示 (Display source)
-                    // 注意：这需要 variableProcessor 已经有 Context，如果初始化时尚无Context，可能暂时显示原始值
-                    const previewValue = variableProcessor.replaceVariables(rawValue || '');
-                    element.value = previewValue;
+                    element.value = processor.replace(rawValue || '', elementId);
                 }
 
-                // 全局变量
                 let currentEditingInput = null;
                 let currentInputId = null;
 
-                // 打开模态框
                 function openVariableEditor(inputElement) {
                     currentEditingInput = inputElement;
                     currentInputId = inputElement.id;
 
-                    // 设置模态框标题
-                    const titles = {
-                        'moreCommand': '编辑运行后额外命令',
-                        'inputFile': '编辑输入文件路径',
-                        'outputFile': '编辑输出文件路径',
-                        'unFileInputFile': '编辑反文件输入路径',
-                        'unFileOutputFile': '编辑反文件输出路径',
-                        'outputPath': '编辑输出路径模板'
-                    };
-                    document.getElementById('modalTitle').textContent = titles[currentInputId] || '编辑内容';
+                    // 【修改】去掉了反引号，使用字符串拼接
+                    document.getElementById('modalTitle').textContent = '编辑 ' + currentInputId;
 
-                    // 获取当前上下文
                     const context = {
                         varValue: document.getElementById('customVariable').value || '',
                         baseName: baseName || '',
-                        cppDir: '', // 可以从扩展端获取
-                        workdir: '', // 可以从扩展端获取
-                        tmpDir: ''  // 可以从扩展端获取
+                        cppDir: '',
+                        workdir: '',
+                        tmpDir: ''
                     };
 
-                    // 更新处理器上下文
-                    variableProcessor.setContext(context);
-
-                    // 获取变量配置
-                    const config = variableProcessor.getConfigForInput(currentInputId);
-
-                    // 更新提示和变量按钮
-                    document.getElementById('variableHint').textContent = config.hint;
-
-                    // 生成变量按钮
+                    const allowedVars = processor.getAllowedVariables(currentInputId);
                     const buttonsContainer = document.getElementById('variableButtons');
                     buttonsContainer.innerHTML = '';
-                    config.variables.forEach(variable => {
-                        const button = document.createElement('button');
-                        button.className = 'variable-btn';
-                        button.textContent = variable.name;
-                        button.title = variable.description;
-                        button.onclick = () => insertVariable(variable.name);
-                        buttonsContainer.appendChild(button);
-                    });
 
-                    // 获取原始模板（从VSCode存储中获取）
-                    // 这里假设扩展端已经发送了原始模板
-                    const displayValue = inputElement.value;
-                    const originalTemplate = inputElement.dataset.rawValue !== undefined ? inputElement.dataset.rawValue : inputElement.value;
+                    if (allowedVars.length === 0) {
+                        document.getElementById('variableHint').textContent = "此字段无可用变量";
+                    } else {
+                        // 【修改】去掉了反引号
+                        document.getElementById('variableHint').textContent = '可用变量：' + allowedVars.map(v => v.name).join(' ');
+                        allowedVars.forEach(v => {
+                            const button = document.createElement('button');
+                            button.className = 'variable-btn';
+                            button.textContent = v.name;
+                            button.title = v.description;
+                            button.onclick = () => insertVariable(v.name);
+                            buttonsContainer.appendChild(button);
+                        });
+                    }
 
-                    // 设置输入框内容
-                    document.getElementById('templateInput').value = originalTemplate;
-                    document.getElementById('previewInput').value = variableProcessor.replaceVariables(originalTemplate);
+                    const rawVal = inputElement.dataset.rawValue !== undefined ? inputElement.dataset.rawValue : inputElement.value;
 
-                    // 显示模态框
+                    document.getElementById('templateInput').value = rawVal;
+                    document.getElementById('previewInput').value = processor.replace(rawVal, currentInputId);
+
                     document.getElementById('variableEditorModal').style.display = 'flex';
                     document.body.classList.add('modal-active');
 
-                    // 聚焦到模板输入框
                     setTimeout(() => {
-                        document.getElementById('templateInput').focus();
-                        document.getElementById('templateInput').select();
-                    }, 100);
+                        const el = document.getElementById('templateInput');
+                        el.focus(); el.select();
+                    }, 50);
                 }
 
-                // 插入变量到模板输入框
-                function insertVariable(variable) {
+                function insertVariable(varName) {
                     const input = document.getElementById('templateInput');
                     const start = input.selectionStart;
                     const end = input.selectionEnd;
-
-                    input.value = input.value.substring(0, start) +
-                                variable +
-                                input.value.substring(end);
-
-                    // 更新光标位置
-                    const newPosition = start + variable.length;
-                    input.setSelectionRange(newPosition, newPosition);
-
-                    // 更新预览
+                    input.value = input.value.substring(0, start) + varName + input.value.substring(end);
+                    input.setSelectionRange(start + varName.length, start + varName.length);
                     updatePreview();
                 }
 
-                // 更新预览
                 function updatePreview() {
-                    const template = document.getElementById('templateInput').value;
-                    const preview = variableProcessor.replaceVariables(template);
+                    const raw = document.getElementById('templateInput').value;
+                    const preview = processor.replace(raw, currentInputId);
                     document.getElementById('previewInput').value = preview;
                 }
 
-                // 智能更新模板（基于预览框的修改）
-                function updateTemplateFromPreview() {
-                    const template = document.getElementById('templateInput').value;
-                    const preview = document.getElementById('previewInput').value;
-
-                    // 如果预览框有修改
-                    if (preview !== variableProcessor.replaceVariables(template)) {
-                        const newTemplate = variableProcessor.parseTemplateFromPreview(
-                            template,
-                            preview,
-                            currentInputId
-                        );
-                        document.getElementById('templateInput').value = newTemplate;
-                    }
-                }
-
-                // 关闭模态框
                 function closeVariableEditor() {
                     document.getElementById('variableEditorModal').style.display = 'none';
                     document.body.classList.remove('modal-active');
@@ -1945,349 +1864,84 @@ class CppCompilerSidebarProvider {
                     currentInputId = null;
                 }
 
-                // 绑定事件
+                // ==========================================
+                // 4. 事件监听绑定
+                // ==========================================
+
                 document.getElementById('templateInput').addEventListener('input', updatePreview);
-                document.getElementById('previewInput').addEventListener('input', function() {
-                    setTimeout(() => {
-                        updateTemplateFromPreview();
-                        updatePreview();
-                    }, 0);
-                });
-
-                // 保存编辑
-                document.getElementById('saveEdit').addEventListener('click', function() {
-                    if (currentEditingInput && currentInputId) {
-                        // 获取用户编辑的原始模板
-                        const finalTemplate = document.getElementById('templateInput').value;
-
-                        // 【关键修改】使用辅助函数更新UI：存原始值，显预览值
-                        updateInputWithRaw(currentInputId, finalTemplate);
-
-                        // 发送保存消息到扩展端（发送的是原始模板）
-                        const messageMap = {
-                            'moreCommand': 'updateMoreCommand',
-                            'inputFile': 'updateInputFile',
-                            'outputFile': 'updateOutputFile',
-                            'unFileInputFile': 'updateUnFileInputFile',
-                            'unFileOutputFile': 'updateUnFileOutputFile',
-                            'outputPath': 'updateOutputPath'
-                        };
-
-                        const messageType = messageMap[currentInputId];
-                        if (messageType && filePath) {
-                            vscode.postMessage({
-                                type: messageType,
-                                filePath: filePath,
-                                value: finalTemplate  // 发送原始模板给后端保存
-                            });
-
-                            showSaveStatus(currentInputId + 'Status');
-                        }
-                    }
-                    closeVariableEditor();
-                });
-
                 document.getElementById('closeModal').addEventListener('click', closeVariableEditor);
                 document.getElementById('cancelEdit').addEventListener('click', closeVariableEditor);
 
-                // 保存编辑
                 document.getElementById('saveEdit').addEventListener('click', function() {
                     if (currentEditingInput && currentInputId) {
-                        const finalTemplate = document.getElementById('templateInput').value;
+                        const finalRaw = document.getElementById('templateInput').value;
 
-                        // 更新显示的值（预览值）
-                        const displayValue = variableProcessor.replaceVariables(finalTemplate);
-                        currentEditingInput.value = displayValue;
+                        updateInputWithRaw(currentInputId, finalRaw);
 
-                        // 发送保存消息到扩展端
                         const messageMap = {
                             'moreCommand': 'updateMoreCommand',
                             'inputFile': 'updateInputFile',
                             'outputFile': 'updateOutputFile',
                             'unFileInputFile': 'updateUnFileInputFile',
                             'unFileOutputFile': 'updateUnFileOutputFile',
-                            'outputPath': 'updateOutputPath'
+                            'outputPath': 'updateOutputPath',
+                            'customVariable': 'updateCustomVariable'
                         };
 
-                        const messageType = messageMap[currentInputId];
-                        if (messageType && filePath) {
+                        if (messageMap[currentInputId] && filePath) {
                             vscode.postMessage({
-                                type: messageType,
+                                type: messageMap[currentInputId],
                                 filePath: filePath,
-                                value: finalTemplate  // 保存模板
+                                value: finalRaw
                             });
-
                             showSaveStatus(currentInputId + 'Status');
                         }
                     }
                     closeVariableEditor();
                 });
 
-                // 绑定输入框点击事件
-                const variableInputs = [
-                    'moreCommand', 'inputFile', 'outputFile',
-                    'unFileInputFile', 'unFileOutputFile', 'outputPath'
-                ];
-
-                variableInputs.forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.addEventListener('focus', function(e) {
+                Object.keys(VARIABLE_CONFIG.inputRules).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('focus', function(e) {
                             e.preventDefault();
                             openVariableEditor(this);
                         });
                     }
                 });
 
-                // 监听来自扩展端的上下文更新
+                // ==========================================
+                // 5. 消息处理
+                // ==========================================
                 window.addEventListener('message', event => {
                     const data = event.data;
-                    if (data.type === 'updateContext') {
-                        // 更新处理器的上下文
-                        variableProcessor.setContext({
-                            varValue: data.customVariable || '',
-                            baseName: data.baseName || '',
-                            cppDir: data.cppDir || '',
-                            workdir: data.workdir || '',
-                            tmpDir: data.tmpDir || ''
-                        });
 
-                        // 如果模态框打开着，更新预览
-                        if (document.getElementById('variableEditorModal').style.display === 'flex') {
-                            updatePreview();
-                        }
-                    }
-                });
-
-                // 接收扩展端初始化消息
-                window.addEventListener('message', event => {
-                    const data = event.data;
                     if (data.type === 'init') {
                         filePath = data.filePath;
                         baseName = data.baseName;
                     }
-                });
 
-                // 折叠面板切换
-                document.querySelectorAll('.section-header').forEach(header => {
-                    header.addEventListener('click', () => {
-                        const sectionId = header.getAttribute('data-section');
-                        const content = document.getElementById(sectionId + 'Content');
-                        const icon = header.querySelector('.collapse-icon');
-
-                        // 切换并获取切换后的状态
-                        const isExpanded = content.classList.toggle('expanded');
-                        icon.classList.toggle('rotate');
-
-                        if(filePath){
-                            vscode.postMessage({
-                                type: 'updateCardState',
-                                section: sectionId,
-                                filePath: filePath,
-                                value: isExpanded
-                            });
-                        }
-                    });
-                });
-
-                // 显示保存状态
-                function showSaveStatus(elementId) {
-                    const statusElement = document.getElementById(elementId);
-                    statusElement.classList.add('visible');
-                    setTimeout(() => {
-                        statusElement.classList.remove('visible');
-                    }, 3000);
-                }
-
-                // 更改编译器路径
-                document.getElementById('compilerPath').addEventListener('blur', () => {
-                    const options = document.getElementById('compilerPath').value.trim();
-                    vscode.postMessage({
-                        type: 'changeCompilerPath',
-                        value: options
-                    });
-                    showSaveStatus('compilerPathStatus');
-                });
-
-                // 保存编译选项
-                document.getElementById('compileOptions').addEventListener('blur', () => {
-                    if(filePath){
-                        const options = document.getElementById('compileOptions').value.trim();
-                        vscode.postMessage({
-                            type: 'updateCompileOptions',
-                            filePath: filePath,
-                            value: options
-                        });
-                        showSaveStatus('compileOptionsStatus');
-                    }
-                });
-
-                // 静态链接选项
-                document.getElementById('staticLinking').addEventListener('change', (e) => {
-                    if(filePath){
-                        vscode.postMessage({
-                            type: 'toggleStaticLinking',
-                            filePath: filePath,
-                            value: e.target.checked
-                        });
-                    }
-                });
-
-                // ConsoleInfo 选项
-                document.getElementById('useConsoleInfo').addEventListener('change', (e) => {
-                    vscode.postMessage({
-                        type: 'toggleUseConsoleInfo',
-                        value: e.target.checked
-                    });
-                });
-
-                // 文件重定向选项
-                document.getElementById('useFileRedirect').addEventListener('change', (e) => {
-                    if(filePath){
-                        vscode.postMessage({
-                            type: 'toggleFileRedirect',
-                            filePath: filePath,
-                            value: e.target.checked
-                        });
-                    }
-                });
-
-                // 反文件重定向选项
-                document.getElementById('useUnFileRedirect').addEventListener('change', (e) => {
-                    if(filePath){
-                        vscode.postMessage({
-                            type: 'toggleUnFileRedirect',
-                            filePath: filePath,
-                            value: e.target.checked
-                        });
-                    }
-                });
-
-                // 运行按钮
-                document.getElementById('runInternal').addEventListener('click', () => {
-                    if(filePath)vscode.postMessage({ type: 'runInternal', filePath: filePath });
-                });
-
-                document.getElementById('runExternal').addEventListener('click', () => {
-                    if(filePath)vscode.postMessage({ type: 'runExternal', filePath: filePath });
-                });
-
-                document.getElementById('onlyCompile').addEventListener('click', () => {
-                    if(filePath)vscode.postMessage({ type: 'onlyCompile', filePath: filePath });
-                });
-
-                // 监听扩展消息
-                window.addEventListener('message', event => {
-                    const data = event.data;
-                    if (data.type === 'updateButtonStates') {
-                        document.getElementById('runInternal').disabled = !data.enabled;
-                        document.getElementById('runExternal').disabled = !data.enabled;
-                        document.getElementById('onlyCompile').disabled = !data.enabled;
-                        document.getElementById('useFileRedirect').disabled = !data.enabled;
-                        ${process.platform !== 'darwin' ? `document.getElementById('useUnFileRedirect').disabled = !data.enabled;` : ``}
-
-                        // 更新文件输入框的状态
-                        const inputs = [
-                            'inputFile', 'outputFile', 'unFileInputFile', 'unFileOutputFile'
-                        ];
-
-                        inputs.forEach(id => {
-                            const element = document.getElementById(id);
-                            element.disabled = !data.enabled;
-                            if (data.enabled) {
-                                element.setAttribute('title', '可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式');
-                                element.placeholder = "输入文件路径";
-                            } else {
-                                element.value = "";
-                                element.setAttribute('title', '需要打开本地C++文件');
-                                element.placeholder = "需要打开本地C++文件";
-                            }
-                        });
-
-                        const compileOptionsInput = document.getElementById('compileOptions');
-                        compileOptionsInput.disabled = !data.enabled;
-                        if (data.enabled) {
-                            compileOptionsInput.removeAttribute('title');
-                            compileOptionsInput.placeholder = "输入编译选项，如：-std=c++17 -Wall";
-                        } else {
-                            compileOptionsInput.value = "";
-                            compileOptionsInput.setAttribute('title', '需要打开本地C++文件');
-                            compileOptionsInput.placeholder = "需要打开本地C++文件";
-                        }
-
-                        const moreCommandInput = document.getElementById('moreCommand');
-                        moreCommandInput.disabled = !data.enabled;
-                        if (data.enabled) {
-                            moreCommandInput.setAttribute('title', '在暂停之前执行的命令，如"./my_checker my.out bf.out"（可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式）');
-                            moreCommandInput.placeholder = "输入运行后额外命令";
-                        } else {
-                            moreCommandInput.value = "";
-                            moreCommandInput.setAttribute('title', '需要打开本地C++文件');
-                            moreCommandInput.placeholder = "需要打开本地C++文件";
-                        }
-
-                        const customVariableInput = document.getElementById('customVariable');
-                        customVariableInput.disabled = !data.enabled;
-                        if (data.enabled) {
-                            customVariableInput.removeAttribute('title');
-                            customVariableInput.placeholder = "输入自定义 var 变量的值";
-                        } else {
-                            customVariableInput.value = "";
-                            customVariableInput.setAttribute('title', '需要打开本地C++文件');
-                            customVariableInput.placeholder = "需要打开本地C++文件";
-                        }
-
-                        const outputPathInput = document.getElementById('outputPath');
-                        outputPathInput.disabled = !data.enabled;
-                        if (data.enabled) {
-                            outputPathInput.placeholder = "输出文件路径模板";
-                            outputPathInput.title = "可用变量：{cppDir}、{baseName}、{workdir}、{tmpDir}，如：{cppDir}/{baseName}";
-                        } else {
-                            outputPathInput.value = "";
-                            outputPathInput.title = "需要打开本地C++文件";
-                            outputPathInput.placeholder = "需要打开本地C++文件";
-                        }
-
-                        const list = [
-                            'staticLinking', 'runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect'${process.platform !== 'darwin' ? `, 'useUnFileRedirect'` : ``}
-                        ]
-
-                        list.forEach(id => {
-                            const element = document.getElementById(id);
-                            element.disabled = !data.enabled;
-                            if (data.enabled) {
-                                element.removeAttribute('title');
-                            } else {
-                                element.setAttribute('title', '打开本地C++文件以启用此功能');
-                            }
-                        });
-                    }
                     if (data.type === 'updateContext') {
-                        // 1. 先更新处理器上下文 (你原本的代码)
-                        variableProcessor.setContext({
-                            varValue: data.customVariable || '',
-                            baseName: data.baseName || '',
-                            cppDir: data.cppDir || '',
-                            workdir: data.workdir || '',
-                            tmpDir: data.tmpDir || ''
+                        processor.setContext({
+                            varValue: data.customVariable,
+                            baseName: data.baseName,
+                            cppDir: data.cppDir,
+                            workdir: data.workdir,
+                            tmpDir: data.tmpDir
                         });
 
-                        // 2. 刷新所有侧边栏输入框的预览值
-                        // 因为变量变了（比如文件名变了），预览值也得跟着变
-                        const varInputs = ['inputFile', 'outputFile', 'unFileInputFile', 'unFileOutputFile', 'moreCommand', 'outputPath'];
-                        varInputs.forEach(id => {
+                        Object.keys(VARIABLE_CONFIG.inputRules).forEach(id => {
                             const el = document.getElementById(id);
-                            if (el && el.dataset.rawValue) {
-                                // 用已经存着的原始值，重新计算一次预览值
-                                el.value = variableProcessor.replaceVariables(el.dataset.rawValue);
+                            if (el && el.dataset.rawValue !== undefined) {
+                                updateInputWithRaw(id, el.dataset.rawValue);
                             }
                         });
 
-                        // 3. 如果模态框开着，更新模态框预览 (你原本的代码)
                         if (document.getElementById('variableEditorModal').style.display === 'flex') {
                             updatePreview();
                         }
                     }
+
                     if (data.type === 'updateConfig') {
                         document.getElementById('useConsoleInfo').checked = data.useConsoleInfo;
                         document.getElementById('compilerPath').value = data.compilerPath;
@@ -2295,29 +1949,105 @@ class CppCompilerSidebarProvider {
                         if (data.isCppFile) {
                             document.getElementById('compileOptions').value = data.compileOptions;
                             document.getElementById('staticLinking').checked = data.useStaticLinking;
-                            document.getElementById('inputFile').value = data.inputFile;
-                            document.getElementById('outputFile').value = data.outputFile;
-                            document.getElementById('unFileInputFile').value = data.unFileInputFile;
-                            document.getElementById('unFileOutputFile').value = data.unFileOutputFile;
                             document.getElementById('useFileRedirect').checked = data.useFileRedirect;
                             document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
-                            document.getElementById('moreCommand').value = data.moreCommand;
-                            document.getElementById('customVariable').value = data.customVariable;
-                            document.getElementById('outputPath').value = data.outputPath;
+
+                            updateInputWithRaw('inputFile', data.inputFile);
+                            updateInputWithRaw('outputFile', data.outputFile);
+                            updateInputWithRaw('unFileInputFile', data.unFileInputFile);
+                            updateInputWithRaw('unFileOutputFile', data.unFileOutputFile);
+                            updateInputWithRaw('moreCommand', data.moreCommand);
+                            updateInputWithRaw('customVariable', data.customVariable);
+                            updateInputWithRaw('outputPath', data.outputPath);
                         }
 
-                        // 恢复卡片展开/收起状态
-                        const cards = ['compileOptions', 'runControl', 'advanced', 'fileOperations'];
-
-                        cards.forEach(id => {
+                        ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(id => {
                             const open = data[id + "CardOpen"];
                             const content = document.getElementById(id + "Content");
-                            const icon = document.querySelector('.section-header[data-section=' + id + '] .collapse-icon');
-                            content.classList.toggle('expanded', open);
-                            icon.classList.toggle('rotate', open);
+                            // 【修改】去掉了反引号，使用单引号拼接
+                            const icon = document.querySelector('.section-header[data-section="' + id + '"] .collapse-icon');
+                            if(content && icon) {
+                                content.classList.toggle('expanded', open);
+                                icon.classList.toggle('rotate', open);
+                            }
+                        });
+                    }
+
+                    if (data.type === 'updateButtonStates') {
+                        const enabled = data.enabled;
+                        const ids = ['runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
+                        ids.forEach(id => {
+                            const el = document.getElementById(id);
+                            if(el) el.disabled = !enabled;
+                        });
+
+                        const inputIds = Object.keys(VARIABLE_CONFIG.inputRules).concat(['compileOptions']);
+                        inputIds.forEach(id => {
+                            const el = document.getElementById(id);
+                            if(el) {
+                                el.disabled = !enabled;
+                                if(!enabled) el.value = '';
+                            }
                         });
                     }
                 });
+
+                // ==========================================
+                // 6. 其他 UI 事件
+                // ==========================================
+
+                document.querySelectorAll('.section-header').forEach(header => {
+                    header.addEventListener('click', () => {
+                        const sectionId = header.getAttribute('data-section');
+                        const content = document.getElementById(sectionId + 'Content');
+                        const icon = header.querySelector('.collapse-icon');
+                        const isExpanded = content.classList.toggle('expanded');
+                        icon.classList.toggle('rotate');
+                        if(filePath) vscode.postMessage({ type: 'updateCardState', section: sectionId, filePath: filePath, value: isExpanded });
+                    });
+                });
+
+                document.getElementById('compilerPath').addEventListener('blur', (e) => {
+                    vscode.postMessage({ type: 'changeCompilerPath', value: e.target.value.trim() });
+                    showSaveStatus('compilerPathStatus');
+                });
+
+                document.getElementById('compileOptions').addEventListener('blur', (e) => {
+                    if(filePath) {
+                        vscode.postMessage({ type: 'updateCompileOptions', filePath: filePath, value: e.target.value.trim() });
+                        showSaveStatus('compileOptionsStatus');
+                    }
+                });
+
+                const checkMap = {
+                    'staticLinking': 'toggleStaticLinking',
+                    'useConsoleInfo': 'toggleUseConsoleInfo',
+                    'useFileRedirect': 'toggleFileRedirect',
+                    'useUnFileRedirect': 'toggleUnFileRedirect'
+                };
+                Object.keys(checkMap).forEach(id => {
+                    document.getElementById(id).addEventListener('change', (e) => {
+                        if(id === 'useConsoleInfo') {
+                            vscode.postMessage({ type: checkMap[id], value: e.target.checked });
+                        } else if(filePath) {
+                            vscode.postMessage({ type: checkMap[id], filePath: filePath, value: e.target.checked });
+                        }
+                    });
+                });
+
+                ['runInternal', 'runExternal', 'onlyCompile'].forEach(id => {
+                    document.getElementById(id).addEventListener('click', () => {
+                        if(filePath) vscode.postMessage({ type: id, filePath: filePath });
+                    });
+                });
+
+                function showSaveStatus(id) {
+                    const el = document.getElementById(id);
+                    if(el) {
+                        el.classList.add('visible');
+                        setTimeout(() => el.classList.remove('visible'), 3000);
+                    }
+                }
             </script>
         </body>
 
