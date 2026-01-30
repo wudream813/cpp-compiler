@@ -1,6 +1,6 @@
 # dream-cpp-compiler v7.1.0
 > UI 更新，添加保存设置功能
-> xianz
+> 现在编辑会保存模板字符串了
 # dream-cpp-compiler v7.0.1
 > 修复了根据注释设置编译命令无作用的 bug
 # dream-cpp-compiler v7.0.0
