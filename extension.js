@@ -2250,13 +2250,8 @@ class CppCompilerSidebarProvider {
                         if (!el) return;
 
                         if (mode === 'raw') {
-                            // 【保存模板模式】
-                            // 尝试获取 data-rawValue。如果从未编辑过也未加载过，fallback 到 value
-                            // 注意：你的 updateInputWithRaw 会确保 rawValue 被设置
                             configToSave[id] = el.dataset.rawValue !== undefined ? el.dataset.rawValue : el.value;
                         } else {
-                            // 【保存设置模式】
-                            // 直接获取 input 的 value，因为 value 显示的就是替换后的预览值 (即绝对路径)
                             configToSave[id] = el.value;
                         }
                     });
