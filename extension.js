@@ -1893,6 +1893,7 @@ class CppCompilerSidebarProvider {
                 document.getElementById('cancelEdit').addEventListener('click', closeVariableEditor);
 
                 document.getElementById('saveEdit').addEventListener('click', function() {
+                    console.log("SAVE RAW =", finalRaw);
                     if (currentEditingInput && currentInputId) {
                         // 【关键】始终获取 templateInput 的值 (原始模板)，而不是 previewInput
                         const finalRaw = document.getElementById('templateInput').value;
@@ -1979,6 +1980,7 @@ class CppCompilerSidebarProvider {
                             document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
 
                             // 使用 updateInputWithRaw 统一处理带变量字段
+                            console.log("BACKEND VALUE inputFile =", data.inputFile);
                             updateInputWithRaw('inputFile', data.inputFile);
                             updateInputWithRaw('outputFile', data.outputFile);
                             updateInputWithRaw('unFileInputFile', data.unFileInputFile);
