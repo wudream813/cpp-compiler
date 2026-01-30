@@ -1812,6 +1812,20 @@ class CppCompilerSidebarProvider {
                 // 创建全局处理器实例
                 const variableProcessor = new VariableProcessor();
 
+                // 辅助函数：更新输入框（同时处理原始值存储和预览值显示）
+                function updateInputWithRaw(elementId, rawValue) {
+                    const element = document.getElementById(elementId);
+                    if (!element) return;
+
+                    // 1. 将原始模板存储在 data 属性中 (Truth source)
+                    element.dataset.rawValue = rawValue || '';
+
+                    // 2. 计算预览值并显示 (Display source)
+                    // 注意：这需要 variableProcessor 已经有 Context，如果初始化时尚无Context，可能暂时显示原始值
+                    const previewValue = variableProcessor.replaceVariables(rawValue || '');
+                    element.value = previewValue;
+                }
+
                 // 全局变量
                 let currentEditingInput = null;
                 let currentInputId = null;
@@ -1865,7 +1879,7 @@ class CppCompilerSidebarProvider {
                     // 获取原始模板（从VSCode存储中获取）
                     // 这里假设扩展端已经发送了原始模板
                     const displayValue = inputElement.value;
-                    const originalTemplate = displayValue; // 实际应该从扩展端获取
+                    const originalTemplate = inputElement.dataset.rawValue !== undefined ? inputElement.dataset.rawValue : inputElement.value;
 
                     // 设置输入框内容
                     document.getElementById('templateInput').value = originalTemplate;
