@@ -998,486 +998,514 @@ class CppCompilerSidebarProvider {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>C++编译控制</title>
             <style>
-                * {
+                :root{
+                    --radius-xl: 14px;
+                    --radius-lg: 12px;
+                    --radius-md: 10px;
+                    --radius-sm: 8px;
+
+                    --shadow-1: 0 1px 2px rgba(0,0,0,.10), 0 1px 1px rgba(0,0,0,.06) inset;
+                    --shadow-2: 0 10px 28px rgba(0,0,0,.20), 0 1px 0 rgba(255,255,255,.04) inset;
+
+                    --ring: 0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent);
+                    --ring-soft: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
+
+                    --card-bg: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) 78%, #ffffff12);
+                    --card-bg-hover: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) 70%, #ffffff1f);
+
+                    --muted: var(--vscode-descriptionForeground);
+                    --fg: var(--vscode-foreground);
+                }
+
+                *{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
                     scrollbar-width: none;
-                    transition: color 0.2s ease,
-                                background-color 0.2s ease,
-                                border-color 0.2s ease;
                 }
 
-                body {
-                    background-color: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #fcf7ef85);
-                    color: var(--vscode-foreground);
+                *,
+                *::before,
+                *::after{
+                    transition:
+                        color .18s ease,
+                        background-color .18s ease,
+                        border-color .18s ease,
+                        box-shadow .22s ease,
+                        transform .22s ease,
+                        opacity .22s ease,
+                        filter .22s ease;
+                }
+
+                body{
+                    background:
+                        radial-gradient(1200px 400px at 20% -10%, rgba(255,255,255,.06), transparent 55%),
+                        radial-gradient(900px 300px at 90% 0%, rgba(255,255,255,.04), transparent 50%),
+                        color-mix(in srgb, var(--vscode-sideBar-background) 92%, #fcf7ef55);
+                    color: var(--fg);
                     font-family: var(--vscode-font-family);
                     font-size: 13px;
-                    line-height: 1.5;
+                    line-height: 1.55;
                     padding: 10px;
                 }
 
-                .container {
+                .container{
                     display: flex;
                     flex-direction: column;
-                    gap: 16px;
+                    gap: 14px;
                     width: 100%;
                 }
 
-                .collapsible-section {
-                    border-radius: 10px;
-                    background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) 80%, #ffffff15);
-                    border: 1px solid var(--vscode-panel-border);
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04),
-                                0 1px 2px rgba(0, 0, 0, 0.02) inset;
-                    border-color: rgba(128, 128, 128, 0.4);
-                    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                                box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                                background 0.35s ease;
+                /* ============ 卡片区块 ============ */
+                .collapsible-section{
                     width: 100%;
                     overflow: hidden;
-                }
-
-                .collapsible-section:hover {
-                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12),
-                                0 2px 6px rgba(0, 0, 0, 0.06);
-                    border-color: var(--vscode-focusBorder);
-                    transform: translateY(-2px);
+                    border-radius: var(--radius-xl);
+                    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
                     background: linear-gradient(
                         180deg,
-                        color-mix(in srgb, var(--vscode-button-background) 40%, #b3fffa77),
-                        var(--vscode-sideBarSectionHeader-background) 4%,
-                        rgba(202, 202, 202, 0.12) 94%,
-                        color-mix(in srgb, var(--vscode-button-background) 40%, #f2c8fd8f)
+                        color-mix(in srgb, var(--card-bg) 92%, transparent),
+                        color-mix(in srgb, var(--vscode-sideBar-background) 92%, transparent)
                     );
+                    box-shadow: var(--shadow-1);
+                    position: relative;
                 }
 
-                .section-header {
-                    font-weight: 600;
-                    padding: 14px 18px;
-                    color: var(--vscode-titleBar-activeForeground);
-                    font-size: 14px;
+                .collapsible-section::before{
+                    content:"";
+                    position:absolute;
+                    inset:0;
+                    pointer-events:none;
+                    background: radial-gradient(800px 200px at 30% 0%, rgba(255,255,255,.08), transparent 55%);
+                    opacity:.9;
+                }
+
+                .collapsible-section:hover{
+                    transform: translateY(-2px);
+                    border-color: color-mix(in srgb, var(--vscode-focusBorder) 65%, transparent);
+                    background: linear-gradient(
+                        180deg,
+                        var(--card-bg-hover),
+                        color-mix(in srgb, var(--vscode-sideBar-background) 92%, transparent)
+                    );
+                    box-shadow: var(--shadow-2);
+                }
+
+                /* ============ 标题栏 ============ */
+                .section-header{
+                    padding: 14px 16px;
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
+
                     cursor: pointer;
                     user-select: none;
-                    background: rgba(175, 175, 175, 0.07);
-                    backdrop-filter: blur(4px);
+
+                    background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) 70%, transparent);
+                    backdrop-filter: blur(6px);
                     position: relative;
                 }
 
-                .section-header::after {
-                    content: '';
-                    position: absolute;
+                .section-header:active{
+                    transform: translateY(1px);
+                }
+
+                .section-header::after{
+                    content:"";
+                    position:absolute;
+                    left: 14px;
+                    right: 14px;
                     bottom: 0;
-                    left: 0;
-                    width: 100%;
                     height: 1px;
-                    background-color: var(--vscode-panel-border);
-                    opacity: 0;
-                    transition: opacity 0.2s ease;
+                    background: color-mix(in srgb, var(--vscode-panel-border) 60%, transparent);
+                    opacity: .55;
                 }
 
-                .section-header:hover::after {
-                    opacity: 1;
+                .section-title{
+                    display:flex;
+                    align-items:center;
+                    gap: 10px;
+                    font-weight: 700;
+                    color: var(--vscode-titleBar-activeForeground);
+                    letter-spacing: .2px;
                 }
 
-                .section-title {
-                    display: flex;
-                    align-items: center;
-                }
-
-                .section-title::before {
-                    content: '';
-                    display: inline-block;
-                    width: 3px;
-                    height: 14px;
+                .section-title::before{
+                    content:"";
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 999px;
                     background: var(--vscode-button-background);
-                    margin-right: 8px;
-                    border-radius: 2px;
+                    box-shadow: 0 0 0 3px color-mix(in srgb, var(--vscode-button-background) 25%, transparent);
                 }
 
-                .collapse-icon {
+                /* 折叠箭头 */
+                .collapse-icon{
                     width: 16px;
                     height: 16px;
-                    color: var(--vscode-descriptionForeground);
-                    transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-                    flex-shrink: 0;
+                    color: color-mix(in srgb, var(--muted) 95%, transparent);
+                    transform-origin: 50% 55%;
                 }
 
-                .rotate {
+                .rotate{
                     transform: rotate(180deg);
                 }
 
-                .section-content {
-                    padding: 0 18px;
+                /* ============ 内容区域（折叠动画） ============ */
+                .section-content{
+                    padding: 0 16px;
                     max-height: 0;
                     overflow: hidden;
                     opacity: 0;
-                    transform: translateY(-8px);
-                    transition: max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1),
-                                padding 0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                                opacity 0.45s ease,
-                                transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+                    transform: translateY(-6px);
+                    transition:
+                        max-height .55s cubic-bezier(.2,.9,.2,1),
+                        padding .35s cubic-bezier(.2,.9,.2,1),
+                        opacity .25s ease,
+                        transform .35s cubic-bezier(.2,.9,.2,1);
                 }
 
-                .section-content.expanded {
-                    padding: 20px 18px;
-                    max-height: 900px;
+                .section-content.expanded{
+                    padding: 16px;
+                    max-height: 1200px;
                     opacity: 1;
                     transform: translateY(0);
                 }
 
-                input[type="text"] {
-                    width: 100%;
-                    padding: 10px 14px;
-                    height: 38px;
-                    border: 1px solid var(--vscode-input-border);
-                    border-radius: 10px;
-                    background: linear-gradient(
-                        145deg,
-                        var(--vscode-input-background),
-                        rgba(206, 206, 206, 0.04)
-                    );
-                    color: var(--vscode-input-foreground);
-                    font-size: 13px;
-                    font-family: var(--vscode-font-family);
-                    outline: none;
-                    position: relative;
-                    z-index: 1;
-                    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15),
-                                inset 0 -1px 2px rgba(255, 255, 255, 0.05);
-                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-
-                input[type="text"]:hover {
-                    border-color: var(--vscode-focusBorder);
-                    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15),
-                                0 0 6px color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent);
-                }
-
-                input[type="text"]:focus {
-                    border-color: var(--vscode-focusBorder);
-                    background: linear-gradient(
-                        160deg,
-                        var(--vscode-input-background),
-                        color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent)
-                    );
-                    box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent),
-                                0 0 10px color-mix(in srgb, var(--vscode-focusBorder) 25%, transparent);
-                }
-
-                input[type="text"]::placeholder {
-                    color: var(--vscode-input-placeholderForeground);
-                    opacity: 0.7;
-                    transition: opacity 0.25s ease;
-                }
-
-                input[type="text"]:focus::placeholder {
-                    opacity: 0.35;
-                }
-
-                .button-group {
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    gap: 10px;
-                    margin-top: 4px;
-                }
-
-                button {
-                    padding: 12px 18px;
-                    background: color-mix(in srgb, var(--vscode-button-background) 70%, transparent);
-                    border: 2px solid transparent;
-                    color: var(--vscode-button-foreground);
-                    border-radius: 10px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 600;
-                    letter-spacing: 0.3px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25),
-                                inset 0 1px 2px rgba(255, 255, 255, 0.1);
-                    transition: transform 0.2s ease,
-                                box-shadow 0.2s ease,
-                                background 0.3s ease;
-                }
-
-                button:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
-                    transform: none;
-                }
-
-                button:hover:not(:disabled) {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
-                }
-
-                button:hover {
-                    border: 2px solid var(--vscode-focusBorder);
-                }
-
-                button:active:not(:disabled) {
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-                    transform: translateY(0);
-                }
-
-                .checkbox-container {
-                    display: flex;
-                    align-items: center;
-                    margin: 12px 0 0;
-                    font-size: 13px;
-                    padding: 6px 10px;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    user-select: none;
-                    transition: background-color 0.25s ease,
-                                transform 0.2s ease;
-                }
-
-                .checkbox-container:hover {
-                    background-color: rgba(255, 255, 255, 0.05);
-                }
-
-                input[type="checkbox"] {
-                    flex-shrink: 0;
-                    margin-right: 8px;
-                    width: 18px;
-                    height: 18px;
-                    accent-color: var(--vscode-button-background);
-                    cursor: pointer;
-                    border-radius: 4px;
-                    transition: all 0.25s ease;
-                    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
-                }
-
-                input[type="checkbox"]:hover {
-                    box-shadow: 0 0 6px var(--vscode-button-background);
-                    transform: scale(1.1);
-                }
-
-                input[type="checkbox"]:checked {
-                    box-shadow: 0 0 10px var(--vscode-button-background);
-                    transform: scale(1.15);
-                }
-
-                .text-input-container {
+                /* ============ 输入区域 ============ */
+                .text-input-container{
                     margin-bottom: 14px;
                     position: relative;
                 }
 
-                .text-input-label {
-                    display: block;
+                .text-input-label{
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                     margin-bottom: 6px;
                     font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                    font-weight: 500;
-                    text-transform: uppercase;
-                    letter-spacing: 0.3px;
-                }
-
-                .subsection {
-                    margin-bottom: 16px;
-                    padding: 16px;
-                    border-radius: 8px;
-                    background-color: var(--vscode-sideBar-background);
-                    border: 1px solid var(--vscode-panel-border);
-                    width: 100%;
-                    transition: all 0.2s ease;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
-                }
-
-                .subsection:hover {
-                    border-color: var(--vscode-focusBorder);
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
-                }
-
-                .subsection-title {
+                    color: var(--muted);
                     font-weight: 600;
-                    margin-bottom: 12px;
-                    color: var(--vscode-titleBar-activeForeground);
+                    letter-spacing: .2px;
+                }
+
+                .text-input-label::before{
+                    content:"";
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 999px;
+                    background: color-mix(in srgb, var(--vscode-button-background) 55%, transparent);
+                }
+
+                input[type="text"]{
+                    width: 100%;
+                    height: 38px;
+                    padding: 10px 12px;
+
+                    border-radius: var(--radius-lg);
+                    border: 1px solid color-mix(in srgb, var(--vscode-input-border) 70%, transparent);
+
+                    background: linear-gradient(
+                        180deg,
+                        color-mix(in srgb, var(--vscode-input-background) 92%, #ffffff08),
+                        color-mix(in srgb, var(--vscode-input-background) 96%, transparent)
+                    );
+
+                    color: var(--vscode-input-foreground);
                     font-size: 13px;
-                    padding-bottom: 6px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
+                    font-family: var(--vscode-font-family);
+
+                    outline: none;
+                    box-shadow:
+                        0 1px 0 rgba(255,255,255,.05) inset,
+                        0 6px 18px rgba(0,0,0,.08);
                 }
 
-                input:disabled {
-                    opacity: 0.7;
-                    cursor: not-allowed;
-                    background-color: var(--vscode-input-background);
-                }
-
-                input:disabled::placeholder {
+                input[type="text"]::placeholder{
                     color: var(--vscode-input-placeholderForeground);
+                    opacity: .65;
                 }
 
-                .save-status {
+                input[type="text"]:hover{
+                    border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
+                    box-shadow:
+                        var(--ring-soft),
+                        0 8px 22px rgba(0,0,0,.12);
+                }
+
+                input[type="text"]:focus{
+                    border-color: var(--vscode-focusBorder);
+                    box-shadow:
+                        var(--ring),
+                        0 10px 26px rgba(0,0,0,.14);
+                }
+
+                input:disabled{
+                    opacity: .65;
+                    cursor: not-allowed;
+                    filter: grayscale(20%);
+                }
+
+                /* ============ 保存状态（更像小 Badge） ============ */
+                .save-status{
                     position: absolute;
-                    right: 14px;
+                    right: 12px;
                     top: 50%;
-                    transform: translateY(-50%);
-                    font-size: 12px;
-                    color: var(--vscode-testing-iconPassed);
+                    transform: translateY(-50%) scale(.96);
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: .2px;
+
+                    color: color-mix(in srgb, var(--vscode-testing-iconPassed) 95%, white);
                     opacity: 0;
                     pointer-events: none;
-                    background: linear-gradient(
-                        135deg,
-                        rgba(0, 200, 120, 0.15),
-                        rgba(0, 200, 120, 0.05)
-                    );
-                    padding: 2px 8px;
-                    border-radius: 6px;
-                    z-index: 2;
-                    font-weight: 500;
-                    letter-spacing: 0.3px;
-                    border: 1px solid rgba(0, 200, 120, 0.3);
-                    box-shadow: 0 2px 6px rgba(0, 200, 120, 0.2);
-                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+                    padding: 3px 8px;
+                    border-radius: 999px;
+
+                    background: color-mix(in srgb, var(--vscode-testing-iconPassed) 18%, transparent);
+                    border: 1px solid color-mix(in srgb, var(--vscode-testing-iconPassed) 35%, transparent);
+
+                    box-shadow: 0 8px 18px rgba(0, 200, 120, 0.18);
                 }
 
-                .save-status.visible {
+                .save-status.visible{
                     opacity: 1;
                     transform: translateY(-50%) scale(1);
-                    animation: savePulse 1s ease forwards;
+                    animation: savePulse .85s ease forwards;
                 }
 
-                @keyframes savePulse {
-                    0% {
-                        transform: translateY(-50%) scale(0.9);
-                        opacity: 0;
-                    }
-                    40% {
-                        transform: translateY(-50%) scale(1.1);
-                        opacity: 1;
-                    }
-                    100% {
-                        transform: translateY(-50%) scale(1);
-                        opacity: 1;
-                    }
+                @keyframes savePulse{
+                    0%{ opacity:0; transform: translateY(-50%) scale(.88); }
+                    55%{ opacity:1; transform: translateY(-50%) scale(1.06); }
+                    100%{ opacity:1; transform: translateY(-50%) scale(1); }
                 }
 
-                .modal {
+                /* ============ 按钮 ============ */
+                .button-group{
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 10px;
+                }
+
+                button{
+                    height: 40px;
+                    padding: 10px 14px;
+                    border-radius: var(--radius-lg);
+                    border: 1px solid transparent;
+
+                    background: linear-gradient(
+                        180deg,
+                        color-mix(in srgb, var(--vscode-button-background) 86%, #ffffff12),
+                        color-mix(in srgb, var(--vscode-button-background) 70%, #00000012)
+                    );
+
+                    color: var(--vscode-button-foreground);
+                    font-size: 13px;
+                    font-weight: 800;
+                    letter-spacing: .2px;
+
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    box-shadow: 0 10px 22px rgba(0,0,0,.22);
+                }
+
+                button:hover:not(:disabled){
+                    transform: translateY(-2px);
+                    border-color: color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent);
+                    box-shadow:
+                        var(--ring-soft),
+                        0 14px 28px rgba(0,0,0,.28);
+                }
+
+                button:active:not(:disabled){
+                    transform: translateY(0px);
+                    box-shadow: 0 6px 14px rgba(0,0,0,.20);
+                }
+
+                button:disabled{
+                    opacity: .55;
+                    cursor: not-allowed;
+                    transform: none;
+                    box-shadow: 0 6px 14px rgba(0,0,0,.18);
+                }
+
+                /* ============ Checkbox ============ */
+                .checkbox-container{
+                    display:flex;
+                    align-items:center;
+                    gap: 10px;
+
+                    margin-top: 10px;
+                    padding: 10px 12px;
+                    border-radius: var(--radius-lg);
+
+                    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 55%, transparent);
+                    background: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #ffffff10);
+
+                    cursor: pointer;
+                    user-select: none;
+                }
+
+                .checkbox-container:hover{
+                    border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
+                    box-shadow: var(--ring-soft);
+                }
+
+                input[type="checkbox"]{
+                    width: 18px;
+                    height: 18px;
+                    accent-color: var(--vscode-button-background);
+                    cursor: pointer;
+                }
+
+                /* ============ 子区块 ============ */
+                .subsection{
+                    margin-bottom: 14px;
+                    padding: 14px;
+                    border-radius: var(--radius-xl);
+
+                    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 55%, transparent);
+                    background: linear-gradient(
+                        180deg,
+                        color-mix(in srgb, var(--vscode-sideBar-background) 92%, #ffffff0d),
+                        color-mix(in srgb, var(--vscode-sideBar-background) 96%, transparent)
+                    );
+
+                    box-shadow: 0 8px 18px rgba(0,0,0,.10);
+                }
+
+                .subsection:hover{
+                    border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, transparent);
+                    box-shadow:
+                        var(--ring-soft),
+                        0 12px 22px rgba(0,0,0,.14);
+                }
+
+                .subsection-title{
+                    font-weight: 900;
+                    font-size: 13px;
+                    color: var(--vscode-titleBar-activeForeground);
+                    margin-bottom: 12px;
+
+                    display:flex;
+                    align-items:center;
+                    gap: 8px;
+                }
+
+                .subsection-title::before{
+                    content:"";
+                    width: 14px;
+                    height: 2px;
+                    border-radius: 999px;
+                    background: color-mix(in srgb, var(--vscode-button-background) 70%, transparent);
+                }
+
+                /* ============ 模态框 ============ */
+                .modal{
                     display: none;
                     position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(0, 0, 0, 0.5);
+                    inset: 0;
+                    background: rgba(0,0,0,.55);
                     z-index: 1000;
                     align-items: center;
                     justify-content: center;
-                    backdrop-filter: blur(2px);
+                    backdrop-filter: blur(4px);
                 }
 
-                .modal-content {
-                    background: var(--vscode-sideBar-background);
-                    border-radius: 10px;
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-                    width: 500px;
-                    max-width: 90%;
-                    border: 1px solid var(--vscode-panel-border);
-                    animation: modalFadeIn 0.3s ease;
+                .modal-content{
+                    width: 520px;
+                    max-width: 92%;
+                    border-radius: 16px;
+                    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+
+                    background: linear-gradient(
+                        180deg,
+                        color-mix(in srgb, var(--vscode-sideBar-background) 92%, #ffffff12),
+                        color-mix(in srgb, var(--vscode-sideBar-background) 98%, transparent)
+                    );
+
+                    box-shadow: 0 22px 60px rgba(0,0,0,.45);
+                    overflow: hidden;
+                    animation: modalFadeIn .22s ease;
                 }
 
-                @keyframes modalFadeIn {
-                    from {
-                        opacity: 0;
-                        transform: translateY(-20px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
+                @keyframes modalFadeIn{
+                    from{ opacity: 0; transform: translateY(-10px) scale(.98); }
+                    to{ opacity: 1; transform: translateY(0) scale(1); }
                 }
 
-                .modal-header {
-                    padding: 18px 24px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                    display: flex;
+                .modal-header{
+                    padding: 16px 18px;
+                    border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
+                    display:flex;
+                    align-items:center;
                     justify-content: space-between;
-                    align-items: center;
                 }
 
-                .modal-header h3 {
+                .modal-header h3{
                     margin: 0;
+                    font-size: 15px;
+                    font-weight: 900;
                     color: var(--vscode-titleBar-activeForeground);
-                    font-size: 16px;
                 }
 
-                .close-btn {
-                    background: none;
-                    border: none;
-                    color: var(--vscode-foreground);
-                    font-size: 24px;
+                .close-btn{
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 10px;
+                    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 55%, transparent);
+                    background: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #ffffff10);
+                    color: var(--fg);
+                    font-size: 20px;
                     cursor: pointer;
-                    padding: 0;
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 4px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    transition: background-color 0.2s ease;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
                 }
 
-                .close-btn:hover {
-                    background-color: rgba(255, 255, 255, 0.1);
+                .close-btn:hover{
+                    border-color: color-mix(in srgb, var(--vscode-focusBorder) 60%, transparent);
+                    box-shadow: var(--ring-soft);
                 }
 
-                .modal-body {
-                    padding: 24px;
+                .modal-body{
+                    padding: 18px;
                 }
 
-                .modal-footer {
-                    padding: 18px 24px;
-                    border-top: 1px solid var(--vscode-panel-border);
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: 12px;
+                .modal-footer{
+                    padding: 14px 18px;
+                    border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
+                    display:flex;
+                    justify-content:flex-end;
+                    gap: 10px;
                 }
 
-                .modal-footer button {
-                    padding: 10px 24px;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 600;
-                    transition: all 0.2s ease;
+                .modal-footer button{
+                    height: 36px;
+                    padding: 8px 14px;
+                    border-radius: 12px;
+                    font-weight: 900;
                 }
 
-                .modal-footer button:hover {
-                    transform: translateY(-1px);
+                #cancelEdit{
+                    background: color-mix(in srgb, var(--vscode-input-background) 92%, #ffffff10);
+                    color: var(--fg);
+                    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
+                    box-shadow: none;
                 }
 
-                #cancelEdit {
-                    background: var(--vscode-input-background);
-                    color: var(--vscode-foreground);
-                    border: 1px solid var(--vscode-panel-border);
-                }
-
-                #saveEdit {
-                    background: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                    border: 1px solid var(--vscode-focusBorder);
-                }
-
-                .variable-hint {
-                    font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                    margin-top: 6px;
-                    font-style: italic;
+                #saveEdit{
+                    border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 65%, transparent);
                 }
 
                 /* 模态框激活时主界面变灰 */
-                .modal-active .container {
-                    filter: grayscale(50%) blur(1px);
-                    opacity: 0.5;
+                .modal-active .container{
+                    filter: grayscale(45%) blur(1px);
+                    opacity: .55;
                     pointer-events: none;
                 }
             </style>
