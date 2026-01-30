@@ -1673,51 +1673,65 @@ class CppCompilerSidebarProvider {
                     </div>
                 </div>
             </div>
-
+            
             <script>
                 const vscode = acquireVsCodeApi();
                 let filePath = '', baseName = ''; // 全局状态
 
                 // ==========================================
-                // 1. 配置区域 (只需修改这里即可控制一切)
+                // 1. 配置区域
                 // ==========================================
                 const VARIABLE_CONFIG = {
+                    // 定义变量获取逻辑
                     definitions: {
                         '{var}': {
                             desc: '自定义变量的值',
-                            valueFn: (ctx) => ctx.varValue
+                            valueFn: function(ctx) { return ctx.varValue; }
                         },
                         '{base}': {
                             desc: '文件名(无后缀)',
-                            valueFn: (ctx) => ctx.baseName
+                            valueFn: function(ctx) { return ctx.baseName; }
                         },
                         '{baseName}': {
                             desc: '文件名(无后缀)',
-                            valueFn: (ctx) => ctx.baseName
+                            valueFn: function(ctx) { return ctx.baseName; }
                         },
                         '{cppDir}': {
                             desc: '源文件所在目录',
-                            valueFn: (ctx) => ctx.cppDir
+                            valueFn: function(ctx) { return ctx.cppDir; }
                         },
                         '{workdir}': {
                             desc: '工作区目录',
-                            valueFn: (ctx) => ctx.workdir
+                            valueFn: function(ctx) { return ctx.workdir; }
                         },
                         '{tmpDir}': {
                             desc: '系统临时目录',
-                            valueFn: (ctx) => ctx.tmpDir
+                            valueFn: function(ctx) { return ctx.tmpDir; }
                         }
                     },
 
+                    // 定义变量组
                     groups: {
+                        // 通用组：包含 {var}
                         'common': ['{var}', '{base}'],
+
+                        // 【修改点1】变量定义组：专门给 customVariable 使用，严禁包含 {var} 防止递归
+                        'varDef': ['{base}', '{cppDir}', '{workdir}'],
+
+                        // 文件操作组
                         'fileOps': ['{var}', '{base}', '{cppDir}'],
+
+                        // 路径生成组：严禁包含 {var}
                         'pathGen': ['{cppDir}', '{baseName}', '{workdir}', '{tmpDir}']
                     },
 
+                    // 绑定输入框规则
                     inputRules: {
                         'moreCommand': 'common',
-                        'customVariable': 'common',
+
+                        // 【修改点2】自定义变量使用 varDef 组 (不含 {var})
+                        'customVariable': 'varDef',
+
                         'inputFile': 'fileOps',
                         'outputFile': 'fileOps',
                         'unFileInputFile': 'fileOps',
@@ -1751,22 +1765,26 @@ class CppCompilerSidebarProvider {
                         }
 
                         return varNames
-                            .filter(name => VARIABLE_CONFIG.definitions[name])
-                            .map(name => ({
-                                name: name,
-                                description: VARIABLE_CONFIG.definitions[name].desc
-                            }));
+                            .filter(function(name) { return VARIABLE_CONFIG.definitions[name]; })
+                            .map(function(name) {
+                                return {
+                                    name: name,
+                                    description: VARIABLE_CONFIG.definitions[name].desc
+                                };
+                            });
                     }
 
                     replace(template, inputId) {
                         if (!template) return '';
 
                         const allowedVars = this.getAllowedVariables(inputId || 'common');
-                        allowedVars.sort((a, b) => b.name.length - a.name.length);
+                        // 按长度排序防止部分匹配
+                        allowedVars.sort(function(a, b) { return b.name.length - a.name.length; });
 
                         let result = template;
 
-                        for (const v of allowedVars) {
+                        for (let i = 0; i < allowedVars.length; i++) {
+                            const v = allowedVars[i];
                             const def = VARIABLE_CONFIG.definitions[v.name];
                             if (def) {
                                 const value = def.valueFn(this.context) || '';
@@ -1787,7 +1805,9 @@ class CppCompilerSidebarProvider {
                     const element = document.getElementById(elementId);
                     if (!element) return;
 
+                    // 存原始值 (Truth)
                     element.dataset.rawValue = rawValue || '';
+                    // 显预览值 (Display)
                     element.value = processor.replace(rawValue || '', elementId);
                 }
 
@@ -1798,16 +1818,14 @@ class CppCompilerSidebarProvider {
                     currentEditingInput = inputElement;
                     currentInputId = inputElement.id;
 
-                    // 【修改】去掉了反引号，使用字符串拼接
                     document.getElementById('modalTitle').textContent = '编辑 ' + currentInputId;
 
-                    const context = {
-                        varValue: document.getElementById('customVariable').value || '',
-                        baseName: baseName || '',
-                        cppDir: '',
-                        workdir: '',
-                        tmpDir: ''
-                    };
+                    // 【修改点3】强制预览框只读，并设置灰色背景，防止用户误编辑预览内容
+                    const previewBox = document.getElementById('previewInput');
+                    previewBox.readOnly = true;
+                    previewBox.style.backgroundColor = 'var(--vscode-editor-inactiveSelectionBackground)';
+                    previewBox.style.cursor = 'not-allowed';
+                    previewBox.title = '预览结果不可直接编辑，请编辑上方的模板框';
 
                     const allowedVars = processor.getAllowedVariables(currentInputId);
                     const buttonsContainer = document.getElementById('variableButtons');
@@ -1816,18 +1834,18 @@ class CppCompilerSidebarProvider {
                     if (allowedVars.length === 0) {
                         document.getElementById('variableHint').textContent = "此字段无可用变量";
                     } else {
-                        // 【修改】去掉了反引号
-                        document.getElementById('variableHint').textContent = '可用变量：' + allowedVars.map(v => v.name).join(' ');
-                        allowedVars.forEach(v => {
+                        document.getElementById('variableHint').textContent = '可用变量：' + allowedVars.map(function(v) { return v.name; }).join(' ');
+                        allowedVars.forEach(function(v) {
                             const button = document.createElement('button');
                             button.className = 'variable-btn';
                             button.textContent = v.name;
                             button.title = v.description;
-                            button.onclick = () => insertVariable(v.name);
+                            button.onclick = function() { insertVariable(v.name); };
                             buttonsContainer.appendChild(button);
                         });
                     }
 
+                    // 优先读取 dataset 中的原始值
                     const rawVal = inputElement.dataset.rawValue !== undefined ? inputElement.dataset.rawValue : inputElement.value;
 
                     document.getElementById('templateInput').value = rawVal;
@@ -1836,9 +1854,10 @@ class CppCompilerSidebarProvider {
                     document.getElementById('variableEditorModal').style.display = 'flex';
                     document.body.classList.add('modal-active');
 
-                    setTimeout(() => {
+                    setTimeout(function() {
                         const el = document.getElementById('templateInput');
-                        el.focus(); el.select();
+                        el.focus();
+                        el.select();
                     }, 50);
                 }
 
@@ -1852,6 +1871,7 @@ class CppCompilerSidebarProvider {
                 }
 
                 function updatePreview() {
+                    // 始终基于 templateInput (原始模板) 计算预览
                     const raw = document.getElementById('templateInput').value;
                     const preview = processor.replace(raw, currentInputId);
                     document.getElementById('previewInput').value = preview;
@@ -1874,10 +1894,13 @@ class CppCompilerSidebarProvider {
 
                 document.getElementById('saveEdit').addEventListener('click', function() {
                     if (currentEditingInput && currentInputId) {
+                        // 【关键】始终获取 templateInput 的值 (原始模板)，而不是 previewInput
                         const finalRaw = document.getElementById('templateInput').value;
 
+                        // 1. 更新前端 UI: 存 raw, 显 preview
                         updateInputWithRaw(currentInputId, finalRaw);
 
+                        // 2. 发送 raw 值给后端保存
                         const messageMap = {
                             'moreCommand': 'updateMoreCommand',
                             'inputFile': 'updateInputFile',
@@ -1900,7 +1923,8 @@ class CppCompilerSidebarProvider {
                     closeVariableEditor();
                 });
 
-                Object.keys(VARIABLE_CONFIG.inputRules).forEach(id => {
+                // 绑定点击/聚焦事件
+                Object.keys(VARIABLE_CONFIG.inputRules).forEach(function(id) {
                     const el = document.getElementById(id);
                     if (el) {
                         el.addEventListener('focus', function(e) {
@@ -1913,7 +1937,7 @@ class CppCompilerSidebarProvider {
                 // ==========================================
                 // 5. 消息处理
                 // ==========================================
-                window.addEventListener('message', event => {
+                window.addEventListener('message', function(event) {
                     const data = event.data;
 
                     if (data.type === 'init') {
@@ -1930,8 +1954,10 @@ class CppCompilerSidebarProvider {
                             tmpDir: data.tmpDir
                         });
 
-                        Object.keys(VARIABLE_CONFIG.inputRules).forEach(id => {
+                        // 刷新所有带变量输入框的显示
+                        Object.keys(VARIABLE_CONFIG.inputRules).forEach(function(id) {
                             const el = document.getElementById(id);
+                            // 仅当已有原始值时刷新，避免覆盖
                             if (el && el.dataset.rawValue !== undefined) {
                                 updateInputWithRaw(id, el.dataset.rawValue);
                             }
@@ -1952,6 +1978,7 @@ class CppCompilerSidebarProvider {
                             document.getElementById('useFileRedirect').checked = data.useFileRedirect;
                             document.getElementById('useUnFileRedirect').checked = data.useUnFileRedirect;
 
+                            // 使用 updateInputWithRaw 统一处理带变量字段
                             updateInputWithRaw('inputFile', data.inputFile);
                             updateInputWithRaw('outputFile', data.outputFile);
                             updateInputWithRaw('unFileInputFile', data.unFileInputFile);
@@ -1961,10 +1988,9 @@ class CppCompilerSidebarProvider {
                             updateInputWithRaw('outputPath', data.outputPath);
                         }
 
-                        ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(id => {
+                        ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(function(id) {
                             const open = data[id + "CardOpen"];
                             const content = document.getElementById(id + "Content");
-                            // 【修改】去掉了反引号，使用单引号拼接
                             const icon = document.querySelector('.section-header[data-section="' + id + '"] .collapse-icon');
                             if(content && icon) {
                                 content.classList.toggle('expanded', open);
@@ -1976,13 +2002,13 @@ class CppCompilerSidebarProvider {
                     if (data.type === 'updateButtonStates') {
                         const enabled = data.enabled;
                         const ids = ['runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
-                        ids.forEach(id => {
+                        ids.forEach(function(id) {
                             const el = document.getElementById(id);
                             if(el) el.disabled = !enabled;
                         });
 
                         const inputIds = Object.keys(VARIABLE_CONFIG.inputRules).concat(['compileOptions']);
-                        inputIds.forEach(id => {
+                        inputIds.forEach(function(id) {
                             const el = document.getElementById(id);
                             if(el) {
                                 el.disabled = !enabled;
@@ -1996,8 +2022,8 @@ class CppCompilerSidebarProvider {
                 // 6. 其他 UI 事件
                 // ==========================================
 
-                document.querySelectorAll('.section-header').forEach(header => {
-                    header.addEventListener('click', () => {
+                document.querySelectorAll('.section-header').forEach(function(header) {
+                    header.addEventListener('click', function() {
                         const sectionId = header.getAttribute('data-section');
                         const content = document.getElementById(sectionId + 'Content');
                         const icon = header.querySelector('.collapse-icon');
@@ -2007,12 +2033,12 @@ class CppCompilerSidebarProvider {
                     });
                 });
 
-                document.getElementById('compilerPath').addEventListener('blur', (e) => {
+                document.getElementById('compilerPath').addEventListener('blur', function(e) {
                     vscode.postMessage({ type: 'changeCompilerPath', value: e.target.value.trim() });
                     showSaveStatus('compilerPathStatus');
                 });
 
-                document.getElementById('compileOptions').addEventListener('blur', (e) => {
+                document.getElementById('compileOptions').addEventListener('blur', function(e) {
                     if(filePath) {
                         vscode.postMessage({ type: 'updateCompileOptions', filePath: filePath, value: e.target.value.trim() });
                         showSaveStatus('compileOptionsStatus');
@@ -2025,8 +2051,8 @@ class CppCompilerSidebarProvider {
                     'useFileRedirect': 'toggleFileRedirect',
                     'useUnFileRedirect': 'toggleUnFileRedirect'
                 };
-                Object.keys(checkMap).forEach(id => {
-                    document.getElementById(id).addEventListener('change', (e) => {
+                Object.keys(checkMap).forEach(function(id) {
+                    document.getElementById(id).addEventListener('change', function(e) {
                         if(id === 'useConsoleInfo') {
                             vscode.postMessage({ type: checkMap[id], value: e.target.checked });
                         } else if(filePath) {
@@ -2035,8 +2061,8 @@ class CppCompilerSidebarProvider {
                     });
                 });
 
-                ['runInternal', 'runExternal', 'onlyCompile'].forEach(id => {
-                    document.getElementById(id).addEventListener('click', () => {
+                ['runInternal', 'runExternal', 'onlyCompile'].forEach(function(id) {
+                    document.getElementById(id).addEventListener('click', function() {
                         if(filePath) vscode.postMessage({ type: id, filePath: filePath });
                     });
                 });
@@ -2045,7 +2071,7 @@ class CppCompilerSidebarProvider {
                     const el = document.getElementById(id);
                     if(el) {
                         el.classList.add('visible');
-                        setTimeout(() => el.classList.remove('visible'), 3000);
+                        setTimeout(function() { el.classList.remove('visible'); }, 3000);
                     }
                 }
             </script>
