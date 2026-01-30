@@ -2103,17 +2103,20 @@ class CppCompilerSidebarProvider {
                 // 7. 新增保存按钮逻辑
                 // ==========================================
 
-                // 收集当前配置数据的函数
-                // mode: 'raw' (模板/带变量) 或 'cooked' (计算值/绝对路径)
+                /**
+                 * 收集当前配置并发送给后端
+                 * mode 'raw' (保存模板/带变量) 或 'cooked' (保存结果/绝对路径)
+                 */
                 function collectAndSendConfig(mode) {
                     if (!filePath) return;
 
                     const configToSave = {};
 
-                    // 1. 获取布尔值设置 (Checkbox)
+                    // 1. 获取布尔值 (Checkbox) -> 转为字符串存储
                     configToSave['useStaticLinking'] = document.getElementById('staticLinking').checked.toString();
                     configToSave['useFileRedirect'] = document.getElementById('useFileRedirect').checked.toString();
                     configToSave['useUnFileRedirect'] = document.getElementById('useUnFileRedirect').checked.toString();
+                    configToSave['useConsoleInfo'] = document.getElementById('useConsoleInfo').checked.toString();
 
                     // 2. 获取编译选项 (直接取值)
                     configToSave['compileOptions'] = document.getElementById('compileOptions').value;
@@ -2126,15 +2129,18 @@ class CppCompilerSidebarProvider {
                     ];
 
                     variableFields.forEach(function(id) {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+
                         if (mode === 'raw') {
-                            // 保存模板：从缓存中取原始字符串 (例如 "{cppDir}/{baseName}.exe")
-                            // 如果缓存中没有(undefined)，回退到空字符串
-                            configToSave[id] = RawConfigCache[id] !== undefined ? RawConfigCache[id] : '';
+                            // 【保存模板模式】
+                            // 尝试获取 data-rawValue。如果从未编辑过也未加载过，fallback 到 value
+                            // 注意：你的 updateInputWithRaw 会确保 rawValue 被设置
+                            configToSave[id] = el.dataset.rawValue !== undefined ? el.dataset.rawValue : el.value;
                         } else {
-                            // 保存设置：从界面取计算后的值 (例如 "C:/Test/main.exe")
-                            // 注意：这里我们重新计算一遍以确保是最新的
-                            const raw = RawConfigCache[id] !== undefined ? RawConfigCache[id] : '';
-                            configToSave[id] = processor.replace(raw, id);
+                            // 【保存设置模式】
+                            // 直接获取 input 的 value，因为 value 显示的就是替换后的预览值 (即绝对路径)
+                            configToSave[id] = el.value;
                         }
                     });
 
@@ -2143,19 +2149,24 @@ class CppCompilerSidebarProvider {
                         type: 'saveConfigToFile',
                         filePath: filePath,
                         config: configToSave,
-                        mode: mode //以此区分提示信息
+                        mode: mode // 用于区分提示信息
                     });
                 }
 
-                // 按钮1: 保存设置 (替换变量后，保存绝对路径)
-                document.getElementById('saveSettings').addEventListener('click', function() {
-                    collectAndSendConfig('cooked');
-                });
+                // 绑定按钮事件
+                const btnSaveSettings = document.getElementById('saveSettings');
+                if (btnSaveSettings) {
+                    btnSaveSettings.addEventListener('click', function() {
+                        collectAndSendConfig('cooked');
+                    });
+                }
 
-                // 按钮2: 保存模板设置 (保留变量)
-                document.getElementById('saveTemplateSettings').addEventListener('click', function() {
-                    collectAndSendConfig('raw');
-                });
+                const btnSaveTemplate = document.getElementById('saveTemplateSettings');
+                if (btnSaveTemplate) {
+                    btnSaveTemplate.addEventListener('click', function() {
+                        collectAndSendConfig('raw');
+                    });
+                }
             </script>
         </body>
 
