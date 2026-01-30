@@ -313,7 +313,7 @@ function checkFilePath() {
 
 async function CompileModule(filePath, ModuleName, executablePath, compilerOption) {
     const compilerPath = getConfig('compilerPath') || 'g++';
-    const compileCommand = `"${compilerPath}" "${filePath}" ${compilerOption} ${getConfig('staticOption') || '-static'} -o "${executablePath}"`;
+    const compileCommand = `"${compilerPath}" "${filePath}" ${getConfig('staticOption') || '-static'} -o "${executablePath}"`;
     ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${compileCommand}\n`]);
 
     if (await fs.existsSync(executablePath)) {
@@ -571,29 +571,29 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}""`;
+            return `cmd /c ""${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         } else {
             const ModuleName = 'ChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}""`;
+            return `cmd /c ""${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         }
     } else if (opt.useFileRedirect) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `cmd /c "${executablePath} "${exeName}" "${opt.inputFile}" "${opt.outputFile}""`;
+            return `cmd /c ""${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}""`;
         } else {
             return `cmd /c ""${exeName}" < "${opt.inputFile}" > "${opt.outputFile}""`;
         }
@@ -601,29 +601,29 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoUnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
+            return `cmd /c ""${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         } else {
             const ModuleName = 'UnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `cmd /c "${executablePath} "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
+            return `cmd /c ""${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         }
     } else {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfo';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath, '-lpsapi');
+            const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `cmd /c "${executablePath} "${exeName}""`;
+            return `cmd /c ""${executablePath}" "${exeName}""`;
         } else {
             return `cmd /c "${exeName}"`;
         }
@@ -640,69 +640,69 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
     if (opt.useFileRedirect && opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
-            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         } else {
             const ModuleName = 'ChangeFileIO';
-            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
-            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result){
                 return null;
             }
-            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}" "${opt.inputFile}" "${opt.outputFile}"`;
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         }
     } else if (opt.useFileRedirect) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoFileIO';
-            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result){
                 return null;
             }
-            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"`;
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"; echo`;
         } else {
-            return `${exeName} < "${opt.inputFile}" > "${opt.outputFile}"`;
+            return `${exeName} < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
         }
     } else if (opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoUnFileIO';
-            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result){
                 return null;
             }
-            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         } else {
             const ModuleName = 'UnFileIO';
-            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result){
                 return null;
             }
-            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"`;
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         }
     } else {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfo';
-            const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result){
                 return null;
             }
-            return `"${executablePath}" "${exeName}"`;
+            return `"${executablePath}" "${exeName}"; echo`;
         } else {
-            return `${exeName}`;
+            return `${exeName}; echo`;
         }
     }
 }
 
 async function buildTerminalCommandLinux(cdCommand, runCommand, moreCommand) {
-    if(moreCommand)return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; echo; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
-    return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; echo; read -s -n1 -p '按任意键退出...'"`;
+    if(moreCommand)return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
+    return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; read -s -n1 -p '按任意键退出...'"`;
 }
 
 // 侧边栏提供者类
@@ -936,6 +936,9 @@ class CppCompilerSidebarProvider {
         let moreCommand = '';
         let customVariable = '';
         let outputPath = '';
+        let cppDir = '';
+        let workdir = '';
+        let tmpDir = '';
 
         if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
             filePath = editor.document.uri.fsPath;
@@ -956,6 +959,9 @@ class CppCompilerSidebarProvider {
             moreCommand = getFileConfig(filePath, 'moreCommand');
             customVariable = getFileConfig(filePath, 'customVariable');
             outputPath = getFileConfig(filePath, 'outputPath');
+            cppDir = path.dirname(filePath) || '';
+            workdir = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || cppDir || '';
+            tmpDir = require('os').tmpdir();
         }
 
         sidebarPanel.webview.postMessage({
@@ -985,6 +991,15 @@ class CppCompilerSidebarProvider {
             customVariable: customVariable,
             outputPath: outputPath
         });
+
+        sidebarPanel.webview.postMessage({
+            type: 'updateContext',
+            customVariable: customVariable,
+            baseName: baseName,
+            cppDir: cppDir,
+            workdir: workdir,
+            tmpDir: tmpDir
+        });
     }
 
     _getHtmlForWebview() {
@@ -995,7 +1010,490 @@ class CppCompilerSidebarProvider {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>C++编译控制</title>
-            <style> *{margin:0;padding:0;box-sizing:border-box;scrollbar-width:none;transition:color .2s ease,background-color .2s ease,border-color .2s ease}body{background-color:color-mix(in srgb,var(--vscode-sideBar-background) 90%,#fcf7ef85);color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:13px;line-height:1.5;padding:10px}.container{display:flex;flex-direction:column;gap:16px;width:100%}.collapsible-section{border-radius:10px;background:color-mix(in srgb,var(--vscode-sideBarSectionHeader-background) %80,#ffffff15);border:1px solid var(--vscode-panel-border);box-shadow:0 2px 4px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.02) inset;border-color:rgba(128,128,128,.4);transition:transform .28s cubic-bezier(.4,0,.2,1),box-shadow .28s cubic-bezier(.4,0,.2,1),background .35s ease;width:100%;overflow:hidden}.collapsible-section:hover{box-shadow:0 8px 20px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.06);border-color:var(--vscode-focusBorder);transform:translateY(-2px);background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-button-background) 40%,#b3fffa77),var(--vscode-sideBarSectionHeader-background) 4%,rgba(202,202,202,.12) 94%,color-mix(in srgb,var(--vscode-button-background) 40%,#f2c8fd8f))}.section-header{font-weight:600;padding:14px 18px;color:var(--vscode-titleBar-activeForeground);font-size:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;background:rgba(175,175,175,.07);backdrop-filter:blur(4px)}.section-header::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:1px;background-color:var(--vscode-panel-border);opacity:0;transition:opacity .2s ease}.section-header:hover::after{opacity:1}.section-title{display:flex;align-items:center}.section-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--vscode-button-background);margin-right:8px;border-radius:2px}.collapse-icon{width:16px;height:16px;color:var(--vscode-descriptionForeground);transition:transform .5s cubic-bezier(.25,1,.5,1);flex-shrink:0}.rotate{transform:rotate(180deg)}.section-content{padding:0 18px;max-height:0;overflow:hidden;opacity:0;transform:translateY(-8px);transition:max-height .55s cubic-bezier(.4,0,.2,1),padding .45s cubic-bezier(.4,0,.2,1),opacity .45s ease,transform .55s cubic-bezier(.4,0,.2,1)}.section-content.expanded{padding:20px 18px;max-height:900px;opacity:1;transform:translateY(0)}input[type=text]{width:100%;padding:10px 14px;height:38px;border:1px solid var(--vscode-input-border);border-radius:10px;background:linear-gradient(145deg,var(--vscode-input-background),rgba(206,206,206,.04));color:var(--vscode-input-foreground);font-size:13px;font-family:var(--vscode-font-family);outline:none;position:relative;z-index:1;box-shadow:inset 0 2px 4px rgba(0,0,0,.15),inset 0 -1px 2px rgba(255,255,255,.05);transition:all .35s cubic-bezier(.4,0,.2,1)}input[type=text]:hover{border-color:var(--vscode-focusBorder);box-shadow:inset 0 2px 4px rgba(0,0,0,.15),0 0 6px color-mix(in srgb,var(--vscode-focusBorder) 35%,transparent)}input[type=text]:focus{border-color:var(--vscode-focusBorder);background:linear-gradient(160deg,var(--vscode-input-background),color-mix(in srgb,var(--vscode-focusBorder) 12%,transparent));box-shadow:0 0 0 2px color-mix(in srgb,var(--vscode-focusBorder) 40%,transparent),0 0 10px color-mix(in srgb,var(--vscode-focusBorder) 25%,transparent)}input[type=text]::placeholder{color:var(--vscode-input-placeholderForeground);opacity:.7;transition:opacity .25s ease}input[type=text]:focus::placeholder{opacity:.35}.button-group{display:grid;grid-template-columns:1fr;gap:10px;margin-top:4px}button{padding:12px 18px;background:color-mix(in srgb,var(--vscode-button-background) 70%,transparent);border:2px solid transparent;color:var(--vscode-button-foreground);border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.25),inset 0 1px 2px rgba(255,255,255,.1);transition:transform .2s ease,box-shadow .2s ease,background .3s ease}button:disabled{opacity:.5;cursor:not-allowed;box-shadow:0 6px 14px rgba(0,0,0,.5);transform:none}button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.3)}button:hover{border:2px solid var(--vscode-focusBorder)}button:active:not(:disabled){box-shadow:0 2px 4px rgba(0,0,0,.04);transform:translateY(0)}.checkbox-container{display:flex;align-items:center;margin:12px 0 0;font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer;user-select:none;transition:background-color .25s ease,transform .2s ease}.checkbox-container:hover{background-color:rgba(255,255,255,.05)}input[type=checkbox]{flex-shrink:0;margin-right:8px;width:18px;height:18px;accent-color:var(--vscode-button-background);cursor:pointer;border-radius:4px;transition:all .25s ease;box-shadow:0 0 4px rgba(0,0,0,.3)}input[type=checkbox]:hover{box-shadow:0 0 6px var(--vscode-button-background);transform:scale(1.1)}input[type=checkbox]:checked{box-shadow:0 0 10px var(--vscode-button-background);transform:scale(1.15)}.text-input-container{margin-bottom:14px;position:relative}.text-input-label{display:block;margin-bottom:6px;font-size:12px;color:var(--vscode-descriptionForeground);font-weight:500;text-transform:uppercase;letter-spacing:.3px}.subsection{margin-bottom:16px;padding:16px;border-radius:8px;background-color:var(--vscode-sideBar-background);border:1px solid var(--vscode-panel-border);width:100%;transition:all .2s ease;box-shadow:0 2px 4px rgba(0,0,0,.02)}.subsection:hover{border-color:var(--vscode-focusBorder);box-shadow:0 4px 8px rgba(0,0,0,.04)}.subsection-title{font-weight:600;margin-bottom:12px;color:var(--vscode-titleBar-activeForeground);font-size:13px;padding-bottom:6px;border-bottom:1px solid var(--vscode-panel-border)}input:disabled{opacity:.7;cursor:not-allowed;background-color:var(--vscode-input-background)}input:disabled::placeholder{color:var(--vscode-input-placeholderForeground)}.save-status{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--vscode-testing-iconPassed);opacity:0;pointer-events:none;background:linear-gradient(135deg,rgba(0,200,120,.15),rgba(0,200,120,.05));padding:2px 8px;border-radius:6px;z-index:2;font-weight:500;letter-spacing:.3px;border:1px solid rgba(0,200,120,.3);box-shadow:0 2px 6px rgba(0,200,120,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}.save-status.visible{opacity:1;transform:translateY(-50%) scale(1);animation:savePulse 1s ease forwards}@keyframes savePulse{0%{transform:translateY(-50%) scale(.9);opacity:0}40%{transform:translateY(-50%) scale(1.1);opacity:1}100%{transform:translateY(-50%) scale(1);opacity:1}} </style>
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                    scrollbar-width: none;
+                    transition: color 0.2s ease,
+                                background-color 0.2s ease,
+                                border-color 0.2s ease;
+                }
+
+                body {
+                    background-color: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #fcf7ef85);
+                    color: var(--vscode-foreground);
+                    font-family: var(--vscode-font-family);
+                    font-size: 13px;
+                    line-height: 1.5;
+                    padding: 10px;
+                }
+
+                .container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    width: 100%;
+                }
+
+                .collapsible-section {
+                    border-radius: 10px;
+                    background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) 80%, #ffffff15);
+                    border: 1px solid var(--vscode-panel-border);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04),
+                                0 1px 2px rgba(0, 0, 0, 0.02) inset;
+                    border-color: rgba(128, 128, 128, 0.4);
+                    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                                box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                                background 0.35s ease;
+                    width: 100%;
+                    overflow: hidden;
+                }
+
+                .collapsible-section:hover {
+                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12),
+                                0 2px 6px rgba(0, 0, 0, 0.06);
+                    border-color: var(--vscode-focusBorder);
+                    transform: translateY(-2px);
+                    background: linear-gradient(
+                        180deg,
+                        color-mix(in srgb, var(--vscode-button-background) 40%, #b3fffa77),
+                        var(--vscode-sideBarSectionHeader-background) 4%,
+                        rgba(202, 202, 202, 0.12) 94%,
+                        color-mix(in srgb, var(--vscode-button-background) 40%, #f2c8fd8f)
+                    );
+                }
+
+                .section-header {
+                    font-weight: 600;
+                    padding: 14px 18px;
+                    color: var(--vscode-titleBar-activeForeground);
+                    font-size: 14px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    cursor: pointer;
+                    user-select: none;
+                    background: rgba(175, 175, 175, 0.07);
+                    backdrop-filter: blur(4px);
+                    position: relative;
+                }
+
+                .section-header::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 1px;
+                    background-color: var(--vscode-panel-border);
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
+                }
+
+                .section-header:hover::after {
+                    opacity: 1;
+                }
+
+                .section-title {
+                    display: flex;
+                    align-items: center;
+                }
+
+                .section-title::before {
+                    content: '';
+                    display: inline-block;
+                    width: 3px;
+                    height: 14px;
+                    background: var(--vscode-button-background);
+                    margin-right: 8px;
+                    border-radius: 2px;
+                }
+
+                .collapse-icon {
+                    width: 16px;
+                    height: 16px;
+                    color: var(--vscode-descriptionForeground);
+                    transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+                    flex-shrink: 0;
+                }
+
+                .rotate {
+                    transform: rotate(180deg);
+                }
+
+                .section-content {
+                    padding: 0 18px;
+                    max-height: 0;
+                    overflow: hidden;
+                    opacity: 0;
+                    transform: translateY(-8px);
+                    transition: max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+                                padding 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                                opacity 0.45s ease,
+                                transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                .section-content.expanded {
+                    padding: 20px 18px;
+                    max-height: 900px;
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+
+                input[type="text"] {
+                    width: 100%;
+                    padding: 10px 14px;
+                    height: 38px;
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 10px;
+                    background: linear-gradient(
+                        145deg,
+                        var(--vscode-input-background),
+                        rgba(206, 206, 206, 0.04)
+                    );
+                    color: var(--vscode-input-foreground);
+                    font-size: 13px;
+                    font-family: var(--vscode-font-family);
+                    outline: none;
+                    position: relative;
+                    z-index: 1;
+                    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15),
+                                inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                input[type="text"]:hover {
+                    border-color: var(--vscode-focusBorder);
+                    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15),
+                                0 0 6px color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent);
+                }
+
+                input[type="text"]:focus {
+                    border-color: var(--vscode-focusBorder);
+                    background: linear-gradient(
+                        160deg,
+                        var(--vscode-input-background),
+                        color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent)
+                    );
+                    box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent),
+                                0 0 10px color-mix(in srgb, var(--vscode-focusBorder) 25%, transparent);
+                }
+
+                input[type="text"]::placeholder {
+                    color: var(--vscode-input-placeholderForeground);
+                    opacity: 0.7;
+                    transition: opacity 0.25s ease;
+                }
+
+                input[type="text"]:focus::placeholder {
+                    opacity: 0.35;
+                }
+
+                .button-group {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 10px;
+                    margin-top: 4px;
+                }
+
+                button {
+                    padding: 12px 18px;
+                    background: color-mix(in srgb, var(--vscode-button-background) 70%, transparent);
+                    border: 2px solid transparent;
+                    color: var(--vscode-button-foreground);
+                    border-radius: 10px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 600;
+                    letter-spacing: 0.3px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25),
+                                inset 0 1px 2px rgba(255, 255, 255, 0.1);
+                    transition: transform 0.2s ease,
+                                box-shadow 0.2s ease,
+                                background 0.3s ease;
+                }
+
+                button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+                    transform: none;
+                }
+
+                button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+                }
+
+                button:hover {
+                    border: 2px solid var(--vscode-focusBorder);
+                }
+
+                button:active:not(:disabled) {
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+                    transform: translateY(0);
+                }
+
+                .checkbox-container {
+                    display: flex;
+                    align-items: center;
+                    margin: 12px 0 0;
+                    font-size: 13px;
+                    padding: 6px 10px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    user-select: none;
+                    transition: background-color 0.25s ease,
+                                transform 0.2s ease;
+                }
+
+                .checkbox-container:hover {
+                    background-color: rgba(255, 255, 255, 0.05);
+                }
+
+                input[type="checkbox"] {
+                    flex-shrink: 0;
+                    margin-right: 8px;
+                    width: 18px;
+                    height: 18px;
+                    accent-color: var(--vscode-button-background);
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.25s ease;
+                    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+                }
+
+                input[type="checkbox"]:hover {
+                    box-shadow: 0 0 6px var(--vscode-button-background);
+                    transform: scale(1.1);
+                }
+
+                input[type="checkbox"]:checked {
+                    box-shadow: 0 0 10px var(--vscode-button-background);
+                    transform: scale(1.15);
+                }
+
+                .text-input-container {
+                    margin-bottom: 14px;
+                    position: relative;
+                }
+
+                .text-input-label {
+                    display: block;
+                    margin-bottom: 6px;
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                    font-weight: 500;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+
+                .subsection {
+                    margin-bottom: 16px;
+                    padding: 16px;
+                    border-radius: 8px;
+                    background-color: var(--vscode-sideBar-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    width: 100%;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+                }
+
+                .subsection:hover {
+                    border-color: var(--vscode-focusBorder);
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
+                }
+
+                .subsection-title {
+                    font-weight: 600;
+                    margin-bottom: 12px;
+                    color: var(--vscode-titleBar-activeForeground);
+                    font-size: 13px;
+                    padding-bottom: 6px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+
+                input:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                    background-color: var(--vscode-input-background);
+                }
+
+                input:disabled::placeholder {
+                    color: var(--vscode-input-placeholderForeground);
+                }
+
+                .save-status {
+                    position: absolute;
+                    right: 14px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    font-size: 12px;
+                    color: var(--vscode-testing-iconPassed);
+                    opacity: 0;
+                    pointer-events: none;
+                    background: linear-gradient(
+                        135deg,
+                        rgba(0, 200, 120, 0.15),
+                        rgba(0, 200, 120, 0.05)
+                    );
+                    padding: 2px 8px;
+                    border-radius: 6px;
+                    z-index: 2;
+                    font-weight: 500;
+                    letter-spacing: 0.3px;
+                    border: 1px solid rgba(0, 200, 120, 0.3);
+                    box-shadow: 0 2px 6px rgba(0, 200, 120, 0.2);
+                    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                .save-status.visible {
+                    opacity: 1;
+                    transform: translateY(-50%) scale(1);
+                    animation: savePulse 1s ease forwards;
+                }
+
+                @keyframes savePulse {
+                    0% {
+                        transform: translateY(-50%) scale(0.9);
+                        opacity: 0;
+                    }
+                    40% {
+                        transform: translateY(-50%) scale(1.1);
+                        opacity: 1;
+                    }
+                    100% {
+                        transform: translateY(-50%) scale(1);
+                        opacity: 1;
+                    }
+                }
+
+                .modal {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.5);
+                    z-index: 1000;
+                    align-items: center;
+                    justify-content: center;
+                    backdrop-filter: blur(2px);
+                }
+
+                .modal-content {
+                    background: var(--vscode-sideBar-background);
+                    border-radius: 10px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                    width: 500px;
+                    max-width: 90%;
+                    border: 1px solid var(--vscode-panel-border);
+                    animation: modalFadeIn 0.3s ease;
+                }
+
+                @keyframes modalFadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                .modal-header {
+                    padding: 18px 24px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+
+                .modal-header h3 {
+                    margin: 0;
+                    color: var(--vscode-titleBar-activeForeground);
+                    font-size: 16px;
+                }
+
+                .close-btn {
+                    background: none;
+                    border: none;
+                    color: var(--vscode-foreground);
+                    font-size: 24px;
+                    cursor: pointer;
+                    padding: 0;
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: background-color 0.2s ease;
+                }
+
+                .close-btn:hover {
+                    background-color: rgba(255, 255, 255, 0.1);
+                }
+
+                .modal-body {
+                    padding: 24px;
+                }
+
+                .modal-footer {
+                    padding: 18px 24px;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 12px;
+                }
+
+                .modal-footer button {
+                    padding: 10px 24px;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: 600;
+                    transition: all 0.2s ease;
+                }
+
+                .modal-footer button:hover {
+                    transform: translateY(-1px);
+                }
+
+                #cancelEdit {
+                    background: var(--vscode-input-background);
+                    color: var(--vscode-foreground);
+                    border: 1px solid var(--vscode-panel-border);
+                }
+
+                #saveEdit {
+                    background: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: 1px solid var(--vscode-focusBorder);
+                }
+
+                .variable-hint {
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                    margin-top: 6px;
+                    font-style: italic;
+                }
+
+                /* 模态框激活时主界面变灰 */
+                .modal-active .container {
+                    filter: grayscale(50%) blur(1px);
+                    opacity: 0.5;
+                    pointer-events: none;
+                }
+            </style>
         </head>
 
         <body>
@@ -1147,6 +1645,35 @@ class CppCompilerSidebarProvider {
                 </div>
             </div>
 
+            <!-- 变量编辑模态框 -->
+            <div id="variableEditorModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalTitle">编辑带变量内容</h3>
+                        <button class="close-btn" id="closeModal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="text-input-container">
+                            <div class="text-input-label">模板编辑框（可包含变量）</div>
+                            <input type="text" id="templateInput" placeholder="输入模板内容">
+                            <div class="variable-hint" id="variableHint"></div>
+                        </div>
+                        <div class="text-input-container">
+                            <div class="text-input-label">预览编辑框（变量已替换）</div>
+                            <input type="text" id="previewInput" placeholder="预览内容">
+                        </div>
+                        <div class="variable-reference">
+                            <div class="reference-title">可用变量：</div>
+                            <div class="variable-buttons" id="variableButtons"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="cancelEdit">取消</button>
+                        <button id="saveEdit">保存</button>
+                    </div>
+                </div>
+            </div>
+
             <script>
                 // 初始化可折叠功能
                 // VSCode webview API
@@ -1154,6 +1681,336 @@ class CppCompilerSidebarProvider {
 
                 // 存储扩展端传过来的当前文件路径
                 let filePath = '', baseName = '';
+
+                // 变量处理器类
+                class VariableProcessor {
+                    constructor() {
+                        this.variableConfigs = {};
+                        this.currentContext = {};
+                        this.initDefaultConfigs();
+                    }
+
+                    // 初始化不同类型的变量配置
+                    initDefaultConfigs() {
+                        // 通用变量（所有输入框都可用）
+                        this.variableConfigs['common'] = {
+                            hint: '通用变量：{var}（自定义变量）、{base}（文件名）',
+                            variables: [
+                                { name: '{var}', description: '自定义变量的值' },
+                                { name: '{base}', description: '当前C++文件的不带扩展名的文件名' }
+                            ]
+                        };
+
+                        // 输出路径专用变量
+                        this.variableConfigs['outputPath'] = {
+                            hint: '可用变量：{cppDir}（源文件目录）、{baseName}（不带扩展名的文件名）、{workdir}（工作目录）、{tmpDir}（临时目录）',
+                            variables: [
+                                { name: '{cppDir}', description: '源文件所在目录' },
+                                { name: '{baseName}', description: '不带扩展名的文件名' },
+                                { name: '{workdir}', description: '工作目录（未打开则同源文件目录）' },
+                                { name: '{tmpDir}', description: '临时目录' }
+                            ]
+                        };
+
+                        // 文件操作变量
+                        this.variableConfigs['fileOperations'] = {
+                            hint: '可用变量：{var}（自定义变量）、{base}（文件名）、{cppDir}（源文件目录）',
+                            variables: [
+                                { name: '{var}', description: '自定义变量的值' },
+                                { name: '{base}', description: '当前C++文件的不带扩展名的文件名' },
+                                { name: '{cppDir}', description: '源文件所在目录' }
+                            ]
+                        };
+                    }
+
+                    // 设置当前上下文（文件路径、自定义变量等）
+                    setContext(context) {
+                        this.currentContext = context;
+                    }
+
+                    // 根据输入框类型获取配置
+                    getConfigForInput(inputId) {
+                        if (inputId === 'outputPath') {
+                            return this.variableConfigs['outputPath'];
+                        }
+                        if (['inputFile', 'outputFile', 'unFileInputFile', 'unFileOutputFile'].includes(inputId)) {
+                            return this.variableConfigs['fileOperations'];
+                        }
+                        if (inputId === 'moreCommand') {
+                            return this.variableConfigs['common'];
+                        }
+                        return this.variableConfigs['common'];
+                    }
+
+                    // 替换所有变量
+                    replaceVariables(template) {
+                        if (!template) return '';
+
+                        let result = template;
+                        const context = this.currentContext;
+
+                        // 替换所有可能的变量
+                        const replacements = {
+                            '{var}': context.varValue || '',
+                            '{base}': context.baseName || '',
+                            '{cppDir}': context.cppDir || '',
+                            '{baseName}': context.baseName || '',
+                            '{workdir}': context.workdir || '',
+                            '{tmpDir}': context.tmpDir || ''
+                        };
+
+                        for (const [variable, value] of Object.entries(replacements)) {
+                            result = result.replace(new RegExp(this.escapeRegExp(variable), 'g'), value);
+                        }
+
+                        return result;
+                    }
+
+                    // 从预览值反向解析模板
+                    parseTemplateFromPreview(template, preview, inputId) {
+                        if (template === preview) return template;
+
+                        const config = this.getConfigForInput(inputId);
+                        let result = preview;
+                        const context = this.currentContext;
+
+                        // 按照变量长度降序排序，避免替换冲突
+                        const sortedVariables = [...config.variables].sort((a, b) => b.name.length - a.name.length);
+
+                        for (const variable of sortedVariables) {
+                            const varName = variable.name;
+                            const varValue = this.getVariableValue(varName, context);
+
+                            if (varValue && result.includes(varValue)) {
+                                // 使用正则确保只替换完整的单词边界
+                                const regex = new RegExp(\`\\\\b\${this.escapeRegExp(varValue)}\\\\b\`, 'g');
+                                result = result.replace(regex, varName);
+                            }
+                        }
+
+                        return result;
+                    }
+
+                    // 获取变量对应的值
+                    getVariableValue(varName, context) {
+                        const mapping = {
+                            '{var}': context.varValue,
+                            '{base}': context.baseName,
+                            '{cppDir}': context.cppDir,
+                            '{baseName}': context.baseName,
+                            '{workdir}': context.workdir,
+                            '{tmpDir}': context.tmpDir
+                        };
+                        return mapping[varName] || '';
+                    }
+
+                    escapeRegExp(string) {
+                        return string.replace(/[.*+?^\${}()|[\]\\]/g, '\\\\\\\\\$&');
+                    }
+                }
+
+                // 创建全局处理器实例
+                const variableProcessor = new VariableProcessor();
+
+                // 全局变量
+                let currentEditingInput = null;
+                let currentInputId = null;
+
+                // 打开模态框
+                function openVariableEditor(inputElement) {
+                    currentEditingInput = inputElement;
+                    currentInputId = inputElement.id;
+
+                    // 设置模态框标题
+                    const titles = {
+                        'moreCommand': '编辑运行后额外命令',
+                        'inputFile': '编辑输入文件路径',
+                        'outputFile': '编辑输出文件路径',
+                        'unFileInputFile': '编辑反文件输入路径',
+                        'unFileOutputFile': '编辑反文件输出路径',
+                        'outputPath': '编辑输出路径模板'
+                    };
+                    document.getElementById('modalTitle').textContent = titles[currentInputId] || '编辑内容';
+
+                    // 获取当前上下文
+                    const context = {
+                        varValue: document.getElementById('customVariable').value || '',
+                        baseName: baseName || '',
+                        cppDir: '', // 可以从扩展端获取
+                        workdir: '', // 可以从扩展端获取
+                        tmpDir: ''  // 可以从扩展端获取
+                    };
+
+                    // 更新处理器上下文
+                    variableProcessor.setContext(context);
+
+                    // 获取变量配置
+                    const config = variableProcessor.getConfigForInput(currentInputId);
+
+                    // 更新提示和变量按钮
+                    document.getElementById('variableHint').textContent = config.hint;
+
+                    // 生成变量按钮
+                    const buttonsContainer = document.getElementById('variableButtons');
+                    buttonsContainer.innerHTML = '';
+                    config.variables.forEach(variable => {
+                        const button = document.createElement('button');
+                        button.className = 'variable-btn';
+                        button.textContent = variable.name;
+                        button.title = variable.description;
+                        button.onclick = () => insertVariable(variable.name);
+                        buttonsContainer.appendChild(button);
+                    });
+
+                    // 获取原始模板（从VSCode存储中获取）
+                    // 这里假设扩展端已经发送了原始模板
+                    const displayValue = inputElement.value;
+                    const originalTemplate = displayValue; // 实际应该从扩展端获取
+
+                    // 设置输入框内容
+                    document.getElementById('templateInput').value = originalTemplate;
+                    document.getElementById('previewInput').value = variableProcessor.replaceVariables(originalTemplate);
+
+                    // 显示模态框
+                    document.getElementById('variableEditorModal').style.display = 'flex';
+                    document.body.classList.add('modal-active');
+
+                    // 聚焦到模板输入框
+                    setTimeout(() => {
+                        document.getElementById('templateInput').focus();
+                        document.getElementById('templateInput').select();
+                    }, 100);
+                }
+
+                // 插入变量到模板输入框
+                function insertVariable(variable) {
+                    const input = document.getElementById('templateInput');
+                    const start = input.selectionStart;
+                    const end = input.selectionEnd;
+
+                    input.value = input.value.substring(0, start) +
+                                variable +
+                                input.value.substring(end);
+
+                    // 更新光标位置
+                    const newPosition = start + variable.length;
+                    input.setSelectionRange(newPosition, newPosition);
+
+                    // 更新预览
+                    updatePreview();
+                }
+
+                // 更新预览
+                function updatePreview() {
+                    const template = document.getElementById('templateInput').value;
+                    const preview = variableProcessor.replaceVariables(template);
+                    document.getElementById('previewInput').value = preview;
+                }
+
+                // 智能更新模板（基于预览框的修改）
+                function updateTemplateFromPreview() {
+                    const template = document.getElementById('templateInput').value;
+                    const preview = document.getElementById('previewInput').value;
+
+                    // 如果预览框有修改
+                    if (preview !== variableProcessor.replaceVariables(template)) {
+                        const newTemplate = variableProcessor.parseTemplateFromPreview(
+                            template,
+                            preview,
+                            currentInputId
+                        );
+                        document.getElementById('templateInput').value = newTemplate;
+                    }
+                }
+
+                // 关闭模态框
+                function closeVariableEditor() {
+                    document.getElementById('variableEditorModal').style.display = 'none';
+                    document.body.classList.remove('modal-active');
+                    currentEditingInput = null;
+                    currentInputId = null;
+                }
+
+                // 绑定事件
+                document.getElementById('templateInput').addEventListener('input', updatePreview);
+                document.getElementById('previewInput').addEventListener('input', function() {
+                    setTimeout(() => {
+                        updateTemplateFromPreview();
+                        updatePreview();
+                    }, 0);
+                });
+
+                document.getElementById('closeModal').addEventListener('click', closeVariableEditor);
+                document.getElementById('cancelEdit').addEventListener('click', closeVariableEditor);
+
+                // 保存编辑
+                document.getElementById('saveEdit').addEventListener('click', function() {
+                    if (currentEditingInput && currentInputId) {
+                        const finalTemplate = document.getElementById('templateInput').value;
+
+                        // 更新显示的值（预览值）
+                        const displayValue = variableProcessor.replaceVariables(finalTemplate);
+                        currentEditingInput.value = displayValue;
+
+                        // 发送保存消息到扩展端
+                        const messageMap = {
+                            'moreCommand': 'updateMoreCommand',
+                            'inputFile': 'updateInputFile',
+                            'outputFile': 'updateOutputFile',
+                            'unFileInputFile': 'updateUnFileInputFile',
+                            'unFileOutputFile': 'updateUnFileOutputFile',
+                            'outputPath': 'updateOutputPath'
+                        };
+
+                        const messageType = messageMap[currentInputId];
+                        if (messageType && filePath) {
+                            vscode.postMessage({
+                                type: messageType,
+                                filePath: filePath,
+                                value: finalTemplate  // 保存模板
+                            });
+
+                            showSaveStatus(currentInputId + 'Status');
+                        }
+                    }
+                    closeVariableEditor();
+                });
+
+                // 绑定输入框点击事件
+                const variableInputs = [
+                    'moreCommand', 'inputFile', 'outputFile',
+                    'unFileInputFile', 'unFileOutputFile', 'outputPath'
+                ];
+
+                variableInputs.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('focus', function(e) {
+                            e.preventDefault();
+                            openVariableEditor(this);
+                        });
+                    }
+                });
+
+                // 监听来自扩展端的上下文更新
+                window.addEventListener('message', event => {
+                    const data = event.data;
+                    if (data.type === 'updateContext') {
+                        // 更新处理器的上下文
+                        variableProcessor.setContext({
+                            varValue: data.customVariable || '',
+                            baseName: data.baseName || '',
+                            cppDir: data.cppDir || '',
+                            workdir: data.workdir || '',
+                            tmpDir: data.tmpDir || ''
+                        });
+
+                        // 如果模态框打开着，更新预览
+                        if (document.getElementById('variableEditorModal').style.display === 'flex') {
+                            updatePreview();
+                        }
+                    }
+                });
 
                 // 接收扩展端初始化消息
                 window.addEventListener('message', event => {
@@ -1247,84 +2104,6 @@ class CppCompilerSidebarProvider {
                         type: 'toggleUseConsoleInfo',
                         value: e.target.checked
                     });
-                });
-
-                // 设置额外命令
-                document.getElementById('moreCommand').addEventListener('blur', (e) => {
-                    if(filePath){
-                        document.getElementById('moreCommand').value = document.getElementById('moreCommand').value.replace(/\{base\}/g, baseName);
-                        const cmd = document.getElementById('moreCommand').value.trim();
-                        vscode.postMessage({
-                            type: 'updateMoreCommand',
-                            filePath: filePath,
-                            value: cmd
-                        });
-                        showSaveStatus('moreCommandStatus');
-                    }
-                });
-
-                // 自定义变量输入框保存
-                document.getElementById('customVariable').addEventListener('blur', (e) => {
-                    if(filePath){
-                        vscode.postMessage({
-                            type: 'updateCustomVariable',
-                            filePath: filePath,
-                            value: e.target.value.trim()
-                        });
-                        showSaveStatus('customVariableStatus');
-                    }
-                });
-
-                // 文件读写输入框保存
-                document.getElementById('inputFile').addEventListener('blur', (e) => {
-                    if(filePath){
-                        document.getElementById('inputFile').value = document.getElementById('inputFile').value.replace(/\{base\}/g, baseName);
-                        vscode.postMessage({
-                            type: 'updateInputFile',
-                            filePath: filePath,
-                            value: e.target.value.trim()
-                        });
-                        showSaveStatus('inputFileStatus');
-                    }
-                });
-
-                // 文件读写输出框保存
-                document.getElementById('outputFile').addEventListener('blur', (e) => {
-                    if(filePath){
-                        document.getElementById('outputFile').value = document.getElementById('outputFile').value.replace(/\{base\}/g, baseName);
-                        vscode.postMessage({
-                            type: 'updateOutputFile',
-                            filePath: filePath,
-                            value: e.target.value.trim()
-                        });
-                        showSaveStatus('outputFileStatus');
-                    }
-                });
-
-                // 反文件读写输入框保存
-                document.getElementById('unFileInputFile').addEventListener('blur', (e) => {
-                    if(filePath){
-                        document.getElementById('unFileInputFile').value = document.getElementById('unFileInputFile').value.replace(/\{base\}/g, baseName);
-                        vscode.postMessage({
-                            type: 'updateUnFileInputFile',
-                            filePath: filePath,
-                            value: e.target.value.trim()
-                        });
-                        showSaveStatus('unFileInputFileStatus');
-                    }
-                });
-
-                // 反文件读写输出框保存
-                document.getElementById('unFileOutputFile').addEventListener('blur', (e) => {
-                    if(filePath){
-                        document.getElementById('unFileOutputFile').value = document.getElementById('unFileOutputFile').value.replace(/\{base\}/g, baseName);
-                        vscode.postMessage({
-                            type: 'updateUnFileOutputFile',
-                            filePath: filePath,
-                            value: e.target.value.trim()
-                        });
-                        showSaveStatus('unFileOutputFileStatus');
-                    }
                 });
 
                 // 文件重定向选项
