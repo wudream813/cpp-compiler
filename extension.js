@@ -1603,8 +1603,8 @@ class CppCompilerSidebarProvider {
                         <!-- 保存设置 -->
                         <div class="save-actions-section">
                             <div class="button-group">
-                                <button id="saveSettings" title="将当前设置保存">保存设置</button>
-                                <button id="saveTemplateSettings" title="将当前设置保存为全局模板">保存模板设置</button>
+                                <button id="saveSettings" title="将当前设置替换变量后保存 (保存的是 C:\\test.exe)">保存设置</button>
+                                <button id="saveTemplateSettings" title="将当前设置保留变量后保存 (保存的是 {cppDir}\\{baseName}.exe)">保存模板设置</button>
                             </div>
                         </div>
                     </div>
