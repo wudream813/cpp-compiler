@@ -2274,6 +2274,32 @@ class CppCompilerSidebarProvider {
                             }
                         });
                     }
+                    if (data.type === 'updateContext') {
+                        // 1. 先更新处理器上下文 (你原本的代码)
+                        variableProcessor.setContext({
+                            varValue: data.customVariable || '',
+                            baseName: data.baseName || '',
+                            cppDir: data.cppDir || '',
+                            workdir: data.workdir || '',
+                            tmpDir: data.tmpDir || ''
+                        });
+
+                        // 2. 刷新所有侧边栏输入框的预览值
+                        // 因为变量变了（比如文件名变了），预览值也得跟着变
+                        const varInputs = ['inputFile', 'outputFile', 'unFileInputFile', 'unFileOutputFile', 'moreCommand', 'outputPath'];
+                        varInputs.forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el && el.dataset.rawValue) {
+                                // 用已经存着的原始值，重新计算一次预览值
+                                el.value = variableProcessor.replaceVariables(el.dataset.rawValue);
+                            }
+                        });
+
+                        // 3. 如果模态框开着，更新模态框预览 (你原本的代码)
+                        if (document.getElementById('variableEditorModal').style.display === 'flex') {
+                            updatePreview();
+                        }
+                    }
                     if (data.type === 'updateConfig') {
                         document.getElementById('useConsoleInfo').checked = data.useConsoleInfo;
                         document.getElementById('compilerPath').value = data.compilerPath;
