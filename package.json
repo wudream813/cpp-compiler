@@ -186,28 +186,28 @@
 				},
 				"dream-cpp-compiler.FileInputDefaultValue": {
 					"type": "string",
-					"default": "{base}.in",
-					"description": "文件读写中默认输入文件名 (你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var)"
+					"default": "<base>.in",
+					"description": "文件读写中默认输入文件名 (你可以使用 <base> 占位符来作为当前文件的无拓展名形式，<var> 占位符将会被替换成自定义变量 var)"
 				},
 				"dream-cpp-compiler.FileOutputDefaultValue": {
 					"type": "string",
-					"default": "{base}.out",
-					"description": "文件读写中默认输出文件名 (你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var)"
+					"default": "<base>.out",
+					"description": "文件读写中默认输出文件名 (你可以使用 <base> 占位符来作为当前文件的无拓展名形式，<var> 占位符将会被替换成自定义变量 var)"
 				},
 				"dream-cpp-compiler.UnFileInputDefaultValue": {
 					"type": "string",
-					"default": "{base}.in",
-					"description": "反文件读写中默认输入文件名 (你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var)"
+					"default": "<base>.in",
+					"description": "反文件读写中默认输入文件名 (你可以使用 <base> 占位符来作为当前文件的无拓展名形式，<var> 占位符将会被替换成自定义变量 var)"
 				},
 				"dream-cpp-compiler.UnFileOutputDefaultValue": {
 					"type": "string",
-					"default": "{base}.out",
-					"description": "反文件读写中默认输出文件名 (你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var)"
+					"default": "<base>.out",
+					"description": "反文件读写中默认输出文件名 (你可以使用 <base> 占位符来作为当前文件的无拓展名形式，<var> 占位符将会被替换成自定义变量 var)"
 				},
 				"dream-cpp-compiler.moreCommandDefaultValue": {
 					"type": "string",
 					"default": "",
-					"description": "运行后额外命令默认值 (你可以使用 {base} 占位符来作为当前文件的无拓展名形式，{var} 占位符将会被替换成自定义变量 var)"
+					"description": "运行后额外命令默认值 (你可以使用 <base> 占位符来作为当前文件的无拓展名形式，<var> 占位符将会被替换成自定义变量 var)"
 				},
 				"dream-cpp-compiler.customVariableDefaultValue": {
 					"type": "string",
@@ -251,8 +251,8 @@
 				},
 				"dream-cpp-compiler.outputPath": {
 					"type": "string",
-					"default": "{cppDir}/{baseName}",
-					"description": "输出的可执行文件位置 (windows下可以省略 .exe 后缀，可以使用 {cppDir} 代表源文件所在目录，{baseName} 代表不带后缀名的文件名，{workdir} 代表工作目录(未打开则就是源文件所在目录)，{tmpDir} 代表临时目录)"
+					"default": "<cppDir>/<baseName>",
+					"description": "输出的可执行文件位置 (windows下可以省略 .exe 后缀，可以使用 <cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)"
 				},
 				"dream-cpp-compiler.staticOption": {
 					"type": "string",
@@ -261,8 +261,8 @@
 				},
 				"dream-cpp-compiler.compileCommand": {
 					"type": "string",
-					"default": "\"{cPath}\" \"{cppPath}\" {option} -o \"{outPath}\"",
-					"description": "编译命令，使用 {cPath} 代表编译器路径，{cppPath} 代表源文件路径，{outPath} 代表输出的可执行文件位置，{option} 代表编译选项 (如果是 cl 编译器，需调整为 `\"{cPath}\" \"{cppPath}\" {option} -Fe:\"{outPath}\"`)"
+					"default": "\"<cPath>\" \"<cppPath>\" <option> -o \"<outPath>\"",
+					"description": "编译命令，使用 <cPath> 代表编译器路径，<cppPath> 代表源文件路径，<outPath> 代表输出的可执行文件位置，<option> 代表编译选项 (如果是 cl 编译器，需调整为 `\"<cPath>\" \"<cppPath>\" <option> -Fe:\"<outPath>\"`)"
 				}
 			}
 		}

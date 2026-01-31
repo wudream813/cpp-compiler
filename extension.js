@@ -24,13 +24,15 @@ function openInTerminal(targetPath) {
         exec(`start cmd.exe /K "cd /d ${targetPath}"`);
     } else if (platform === 'darwin') {
         // macOS: osascript
-        const appleScript = `
-            tell application "Terminal"
-                activate
-                do script "cd '${targetPath.replace(/'/g, "'\\''")}'"
-            end tell
-        `;
-        exec(`osascript -e '${appleScript}'`);
+        const cdCmd = `cd ${shellEscapePosix(targetPath)}`;
+        const appleScript = [
+            `tell application "Terminal"`,
+            `activate`,
+            `do script ${JSON.stringify(cdCmd)}`,
+            `end tell`,
+        ].join("\n");
+
+        exec(`osascript -e ${JSON.stringify(appleScript)}`);
     } else {
         // Linux: gnome-terminal
         exec(`gnome-terminal --working-directory=${targetPath}`);
@@ -100,7 +102,7 @@ function ShowErrors(Array) {
 
 function GetExePath(cppPath) {
     // 获取输出路径模板
-    const outputPathTemplate = getFileConfig(cppPath, 'outputPath') || '{cppDir}/{baseName}';
+    const outputPathTemplate = getFileConfig(cppPath, 'outputPath') || '<cppDir>/<baseName>';
 
     // 替换模板中的变量
     const baseName = path.basename(cppPath, '.cpp');
@@ -110,13 +112,14 @@ function GetExePath(cppPath) {
     const tmpDir = os.tmpdir();
 
     let outputPath = outputPathTemplate
-        .replace(/\{cppDir\}/g, cppDir)
-        .replace(/\{baseName\}/g, baseName)
-        .replace(/\{workdir\}/g, workdir)
-        .replace(/\{tmpDir\}/g, tmpDir);
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName)
+        .replace(/<workdir>/g, workdir)
+        .replace(/<tmpDir>/g, tmpDir);
 
-    if (process.platform === 'win32' && path.extname(outputPath) === '') {
-        outputPath += '.exe';
+    if (process.platform === 'win32') {
+        if(path.extname(outputPath) === '')outputPath += '.exe';
+        outputPath = outputPath.replace(/\//g, "\\");
     }
 
     return outputPath;
@@ -153,10 +156,10 @@ function needsRecompile(filePath, compileOptions, compilerPath) {
 function parseFileHeaderConfig(filePath) {
     const baseName = path.basename(filePath, ".cpp");
     let config = {
-        inputFile: (getConfig('FileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-        outputFile: (getConfig('FileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
-        unFileInputFile: (getConfig('UnFileInputDefaultValue') || `{base}.in`).replace(/\{base\}/g, baseName),
-        unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `{base}.out`).replace(/\{base\}/g, baseName),
+        inputFile: (getConfig('FileInputDefaultValue') || `<base>.in`).replace(/<base>/g, baseName),
+        outputFile: (getConfig('FileOutputDefaultValue') || `<base>.out`).replace(/<base>/g, baseName),
+        unFileInputFile: (getConfig('UnFileInputDefaultValue') || `<base>.in`).replace(/<base>/g, baseName),
+        unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `<base>.out`).replace(/<base>/g, baseName),
         useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
         useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
         compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
@@ -165,9 +168,9 @@ function parseFileHeaderConfig(filePath) {
         fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
         compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
         useStaticLinking: getConfig('useStaticDefaultValue') || false,
-        moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/\{base\}/g, baseName),
+        moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/<base>/g, baseName),
         customVariable: getConfig('customVariableDefaultValue') || '',
-        outputPath: (getConfig('outputPath') || '{cppDir}/{baseName}'),
+        outputPath: (getConfig('outputPath') || '<cppDir>/<baseName>'),
         staticOption: getConfig('staticOption') || '-static',
         compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
     };
@@ -253,104 +256,95 @@ function parseFileHeaderConfig(filePath) {
     return config;
 }
 
-function updateCppConfigFile(filePath, newConfig) {
-    if (!fs.existsSync(filePath)) return;
+async function updateCppConfigInEditor(editor, newConfig) {
+    if (!editor) return;
 
-    let content = fs.readFileSync(filePath, 'utf8');
-    let lines = content.split('\n');
+    const document = editor.document;
 
-    // 记录已经更新过的 Key，用于最后判断是否需要新增
-    const updatedKeys = new Set();
+    // 使用 editor.edit 进行事务性编辑
+    await editor.edit(editBuilder => {
+        const lineCount = document.lineCount;
+        const scanLimit = Math.min(lineCount, 50);
 
-    // 限制扫描前50行 (与读取逻辑一致)
-    const scanLimit = Math.min(lines.length, 50);
+        // 记录已经处理过的 Key (转为小写以便对比)
+        const processedKeys = new Set();
 
-    for (let i = 0; i < scanLimit; i++) {
-        // 获取原始行（保留缩进）
-        const line = lines[i];
-        // 这里的 trim 仅用于查找逻辑，修改时我们使用 raw line
-        const trimmedLine = line.trim();
+        // 获取 newConfig 的所有 key
+        const configKeys = Object.keys(newConfig);
 
-        // --- 开始复刻你的读取逻辑 ---
-        const pos = trimmedLine.indexOf(':');
-        if (pos === -1) continue;
+        // 1. 扫描并修改现有行
+        for (let i = 0; i < scanLimit; i++) {
+            const lineObj = document.lineAt(i);
+            const lineText = lineObj.text;
+            const trimmedLine = lineText.trim();
 
-        let end = -1;
-        // 倒序寻找 Key 的结束位置
-        for (let j = pos - 1; j >= 0; --j) {
-            const c = trimmedLine.charCodeAt(j);
-            if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
-                end = j;
-                break;
+            // --- 你的原始解析逻辑 ---
+            const pos = trimmedLine.indexOf(':');
+            if (pos === -1) continue;
+
+            let end = -1;
+            for (let j = pos - 1; j >= 0; --j) {
+                const c = trimmedLine.charCodeAt(j);
+                if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+                    end = j;
+                    break;
+                }
+            }
+            if (end === -1) continue;
+
+            let start = end;
+            while (start >= 0) {
+                const c = trimmedLine.charCodeAt(start);
+                if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) break;
+                --start;
+            }
+
+            const foundKeyRaw = trimmedLine.slice(start + 1, end + 1);
+            const foundKeyLower = foundKeyRaw.toLowerCase();
+            // --- 解析结束 ---
+
+            // 查找 newConfig 中是否有对应的 Key
+            const matchingConfigKey = configKeys.find(k => k.toLowerCase() === foundKeyLower);
+
+            if (matchingConfigKey) {
+                const newValue = newConfig[matchingConfigKey];
+
+                // 找到冒号在 *原始行* 中的位置
+                const colonIndex = lineText.indexOf(':');
+
+                if (colonIndex !== -1) {
+                    // 计算要替换的范围：从冒号后一个字符开始，到行尾
+                    // 这样可以保留缩进、注释符号和 Key
+                    const startPos = new vscode.Position(i, colonIndex + 1);
+                    const endPos = lineObj.range.end;
+                    const range = new vscode.Range(startPos, endPos);
+
+                    // 执行替换：替换为 " newValue" (注意加个空格)
+                    editBuilder.replace(range, ` ${newValue}`);
+
+                    processedKeys.add(matchingConfigKey);
+                }
             }
         }
-        if (end === -1) continue;
 
-        let start = end;
-        // 倒序寻找 Key 的开始位置
-        while (start >= 0) {
-            const c = trimmedLine.charCodeAt(start);
-            if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) break;
-            --start;
-        }
-
-        // 提取 Key (例如 "InputFile")
-        const foundKeyRaw = trimmedLine.slice(start + 1, end + 1);
-        const foundKeyLower = foundKeyRaw.toLowerCase();
-        // --- 复刻结束 ---
-
-        // 查找 newConfig 中是否有对应的 Key (忽略大小写)
-        let matchingConfigKey = null;
-        for (const cfgKey in newConfig) {
-            if (cfgKey.toLowerCase() === foundKeyLower) {
-                matchingConfigKey = cfgKey;
-                break;
+        // 2. 处理不存在的新配置 -> 插入到顶部
+        let textToInsert = '';
+        for (const key of configKeys) {
+            // 如果这个 key 没有被处理过
+            if (!processedKeys.has(key)) {
+                const val = newConfig[key];
+                // 过滤空值
+                if (val !== undefined && val !== null && val !== '') {
+                    textToInsert += `// ${key}: ${val}\n`;
+                }
             }
         }
 
-        if (matchingConfigKey) {
-            const newValue = newConfig[matchingConfigKey];
-
-            // --- 构造新行 ---
-            // 我们需要保留冒号及其之前的所有内容 (包括 "// " 和缩进)
-
-            // 找到冒号在 *原始行* 中的位置
-            // 为了防止注释前面有其他冒号，我们使用 substring 匹配
-            // (稍微简化一点，直接找第一个冒号通常在 Config 格式里是安全的，或者基于 trimmedLine 的 pos 推算)
-            const colonIndex = line.indexOf(':');
-
-            if (colonIndex !== -1) {
-                // 保留前缀: "    // InputFile:"
-                const prefix = line.substring(0, colonIndex + 1);
-
-                // 拼接新值
-                // 注意：如果原文件有 \r (CRLF)，这里保持一致性简单处理，join 时会处理换行
-                lines[i] = `${prefix} ${newValue}`;
-                if (line.endsWith('\r')) lines[i] += '\r';
-
-                updatedKeys.add(matchingConfigKey);
-            }
+        if (textToInsert.length > 0) {
+            // 在文件开头 (0, 0) 插入
+            editBuilder.insert(new vscode.Position(0, 0), textToInsert);
         }
-    }
-
-    // 处理文件中不存在的新配置 -> 插入到顶部
-    const keysToInsert = [];
-    for (const key in newConfig) {
-        if (!updatedKeys.has(key)) {
-            const val = newConfig[key];
-            // 过滤空值，避免插入无意义的行
-            if (val !== undefined && val !== null && val !== '') {
-                keysToInsert.push(`// ${key}: ${val}`);
-            }
-        }
-    }
-
-    if (keysToInsert.length > 0) {
-        lines.unshift(...keysToInsert);
-    }
-
-    // 写回文件
-    fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+    });
 }
 
 // 获取当前文件的配置
@@ -436,10 +430,10 @@ async function OnlyCompile(askUser, filePath) {
     let compileCommandTemplate = getFileConfig(filePath, 'compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"';
 
     let compileCommand = compileCommandTemplate
-        .replace(/\{cPath\}/g, compilerPath)
-        .replace(/\{cppPath\}/g, filePath)
-        .replace(/\{option\}/g, compileOptions)
-        .replace(/\{outPath\}/g, executablePath);
+        .replace(/<cPath>/g, compilerPath)
+        .replace(/<cppPath>/g, filePath)
+        .replace(/<option>/g, compileOptions)
+        .replace(/<outPath>/g, executablePath);
 
     let forceCompile = false;
     if (!needsRecompile(filePath, compileOptions, compilerPath)) {
@@ -572,14 +566,18 @@ async function runProgram(filePath, terminalType) {
 
     // 文件特定配置
     const customVariable = getFileConfig(filePath, 'customVariable');
-    const inputFile = getFileConfig(filePath, 'inputFile').replace(/\{var\}/g, customVariable);
-    const outputFile = getFileConfig(filePath, 'outputFile').replace(/\{var\}/g, customVariable);
-    const unFileInputFile = getFileConfig(filePath, 'unFileInputFile').replace(/\{var\}/g, customVariable);
-    const unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile').replace(/\{var\}/g, customVariable);
+    const inputFile = getFileConfig(filePath, 'inputFile').replace(/<var>/g, customVariable);
+    const outputFile = getFileConfig(filePath, 'outputFile').replace(/<var>/g, customVariable);
+    const unFileInputFile = getFileConfig(filePath, 'unFileInputFile').replace(/<var>/g, customVariable);
+    const unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile').replace(/<var>/g, customVariable);
     const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
+
+    // 工具目录 (存放 ChangeFileIO.cpp 等的父目录)
     const toolPath = path.join(__dirname, 'tools');
-    let moreCommand = getFileConfig(filePath, 'moreCommand').replace(/\{var\}/g, customVariable);
+
+    // 处理额外命令
+    let moreCommand = getFileConfig(filePath, 'moreCommand').replace(/<var>/g, customVariable);
 
     let cdCommand, runCommand;
 
@@ -591,52 +589,63 @@ async function runProgram(filePath, terminalType) {
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
 
-        // ---------------- Linux ----------------
+    // ---------------- Linux ----------------
     } else if (process.platform === 'linux') {
         cdCommand = `cd "${programDir}"`;
+        // 注意：这里传入 toolPath 作为 baseDir
         runCommand = await buildRunCommandLinux(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
 
-        // ---------------- macOS ----------------
+    // ---------------- macOS (新增/修改) ----------------
     } else if (process.platform === 'darwin') {
         cdCommand = `cd "${programDir}"`;
-        if (useFileRedirect) {
-            runCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executablePath.replace(/"/g, '\\"')}' < '${inputFile.replace(/"/g, '\\"')}' > '${outputFile.replace(/"/g, '\\"')}'; read -p \\"按Enter键退出...\\""'`;
-        } else {
-            runCommand = `osascript -e 'tell application "Terminal" to do script "cd '${programDir.replace(/"/g, '\\"')}'; ./'${executablePath.replace(/"/g, '\\"')}'; read -p \\"按Enter键退出...\\""'`;
-        }
+
+        // 使用之前定义的构建函数生成核心 Shell 命令
+        runCommand = await buildRunCommandMacOS(toolPath, executablePath, {
+            UseConsoleInfo, useFileRedirect, useUnFileRedirect,
+            inputFile, outputFile, unFileInputFile, unFileOutputFile
+        });
     }
 
-    if(!runCommand) {
+    // 如果编译辅助模块失败（返回 null），则终止运行
+    if (!runCommand) {
         return;
     }
 
     // ---------------- 执行逻辑 ----------------
+
+    // 1. 内置终端运行
     if (terminalType === 'internal') {
         let RunTerminal = vscode.window.terminals.find(
             term => term.name === 'dream-cpp-compiler:运行'
         );
 
-        if(!RunTerminal) {
+        if (!RunTerminal) {
             RunTerminal = makeTerminal();
         }
 
         RunTerminal.show();
-        RunTerminal.sendText('^C\x03');
+        RunTerminal.sendText('^C\x03'); // 发送 Ctrl+C 尝试中断之前的进程
         RunTerminal.sendText(cdCommand);
-        if(moreCommand)runCommand += ` && ${moreCommand}`;
+
+        if (moreCommand) {
+            runCommand += `; ${moreCommand}`;
+        }
+
         RunTerminal.sendText(runCommand);
+
+    // 2. 外部终端运行
     } else {
         let terminalCommand;
 
         if (process.platform === 'win32') {
             terminalCommand = await buildTerminalCommandWin(executablePath, cdCommand, runCommand, moreCommand);
         } else if (process.platform === 'linux') {
-            terminalCommand = await buildTerminalCommandLinux(executablePath, cdCommand, runCommand, moreCommand);
-        } else {
-            terminalCommand = runCommand; // macOS 已经直接是 osascript
+            terminalCommand = await buildTerminalCommandLinux(cdCommand, runCommand, moreCommand);
+        } else if (process.platform === 'darwin') {
+            terminalCommand = await buildTerminalCommandMacOS(cdCommand, runCommand, moreCommand);
         }
 
         ShowInfo(`外部终端命令: ${terminalCommand}`);
@@ -645,7 +654,7 @@ async function runProgram(filePath, terminalType) {
             if (error) {
                 vscode.window.showErrorMessage("打开外部终端失败！");
                 ShowError(`打开外部终端失败！错误原因：${error.message}`);
-            }else{
+            } else {
                 ShowInfo(`程序 ${filePath} 运行已结束`);
             }
         });
@@ -790,6 +799,78 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
 async function buildTerminalCommandLinux(cdCommand, runCommand, moreCommand) {
     if(moreCommand)return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
     return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; read -s -n1 -p '按任意键退出...'"`;
+}
+
+// ---------------- macOS (Darwin) 构建命令 ----------------
+
+async function buildRunCommandMacOS(baseDir, exeName, opt) {
+    if (opt.useFileRedirect && opt.useUnFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const ModuleName = 'ConsoleInfoChangeFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath);
+            if(!result) return null;
+            // macOS 下通常不需要 .exe 后缀，且路径处理逻辑与 Linux 类似
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
+        } else {
+            const ModuleName = 'ChangeFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath);
+            if(!result) return null;
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
+        }
+    } else if (opt.useFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const ModuleName = 'ConsoleInfoFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result) return null;
+            return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"; echo`;
+        } else {
+            // macOS 也是类 Unix 系统，标准重定向符号与 Linux 一致
+            return `${exeName} < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
+        }
+    } else if (opt.useUnFileRedirect) {
+        if (opt.UseConsoleInfo) {
+            const ModuleName = 'ConsoleInfoUnFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result) return null;
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
+        } else {
+            const ModuleName = 'UnFileIO';
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result) return null;
+            return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
+        }
+    } else {
+        if (opt.UseConsoleInfo) {
+            const ModuleName = 'ConsoleInfo';
+            const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            if(!result) return null;
+            return `"${executablePath}" "${exeName}"; echo`;
+        } else {
+            return `${exeName}; echo`;
+        }
+    }
+}
+
+async function buildTerminalCommandMacOS(cdCommand, runCommand, moreCommand) {
+    let fullShellCmd = `${cdCommand}; ${runCommand};`;
+
+    if (moreCommand) {
+        fullShellCmd += ` ${moreCommand};`;
+    }
+
+    fullShellCmd += ` echo; read -n 1 -s -p '按任意键退出...'; exit`;
+
+    const escapedCmd = fullShellCmd
+        .replace(/\\/g, '\\\\') // 先转义反斜杠
+        .replace(/"/g, '\\"');  // 再转义双引号
+
+    return `osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "${escapedCmd}"'`;
 }
 
 // 侧边栏提供者类
@@ -990,15 +1071,9 @@ class CppCompilerSidebarProvider {
 
                 case 'saveConfigToFile': {
                     try {
-                        updateCppConfigFile(data.filePath, data.config);
+                        updateCppConfigInEditor(vscode.window.activeTextEditor, data.config);
 
-                        const msg = data.mode === 'raw'
-                            ? `已保存模板配置 (保留变量)`
-                            : `已保存当前设置 (绝对路径)`;
-
-                        vscode.window.showInformationMessage(msg);
-
-                        // 可选：保存后如果你想刷新界面，可以调用 updateWebviewContent
+                        ShowInfo(`保存了 ${data.filePath} 的${data.mode === 'raw' ? '模板配置 (保留变量)' : '设置 (绝对路径)'}，内容：${JSON.stringify(data.config, null, 4)}`)
                     } catch (e) {
                         vscode.window.showErrorMessage(`保存失败: ${e.message}`);
                     }
@@ -1653,7 +1728,7 @@ class CppCompilerSidebarProvider {
                         </div>
                         <div class="text-input-container">
                             <div class="text-input-label">输出文件路径</div>
-                            <input type="text" id="outputPath" placeholder="输出文件路径模板" title="输出的可执行文件的路径 ({cppDir} 代表源文件所在目录，{baseName} 代表不带后缀名的文件名，{workdir} 代表工作目录(未打开则就是源文件所在目录)，{tmpDir} 代表临时目录)">
+                            <input type="text" id="outputPath" placeholder="输出文件路径模板" title="输出的可执行文件的路径 (<cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)">
                             <div class="save-status" id="outputPathStatus">✓ 已保存</div>
                         </div>
                         <div class="checkbox-container">
@@ -1678,17 +1753,10 @@ class CppCompilerSidebarProvider {
                             <button id="runExternal">外部终端运行</button>
                             <button id="onlyCompile">仅编译</button>
                         </div>
-                        ${process.platform !== 'darwin' ? `
                         <div class="checkbox-container">
                             <input type="checkbox" id="useConsoleInfo">
-                            <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序</label>
+                            <label for="useConsoleInfo">使用 ConsoleInfo 运行程序</label>
                         </div>
-                        ` : `
-                        <div class="checkbox-container" title="macOS 系统不可用">
-                            <input type="checkbox" id="useConsoleInfo" disabled>
-                            <label for="useConsoleInfo">使用 ConsoleInfo.exe 运行程序 (仅 Windows)</label>
-                        </div>
-                        `}
                     </div>
                 </div>
 
@@ -1706,7 +1774,7 @@ class CppCompilerSidebarProvider {
                         <!-- 运行后额外命令 -->
                         <div class="text-input-container">
                             <div class="text-input-label">运行后额外命令</div>
-                            <input type="text" id="moreCommand" placeholder="输入运行后额外命令" title="在暂停之前执行的命令，如\"./my_checker my.out bf.out\"（可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式）">
+                            <input type="text" id="moreCommand" placeholder="输入运行后额外命令" title="在暂停之前执行的命令，如\"./my_checker my.out bf.out\"（可以使用 <var> 占位符来使用自定义变量，<base> 占位符将会被替换为当前文件的无拓展名形式）">
                             <div class="save-status" id="moreCommandStatus">✓ 已保存</div>
                         </div>
 
@@ -1721,7 +1789,7 @@ class CppCompilerSidebarProvider {
                         <div class="save-actions-section">
                             <div class="button-group">
                                 <button id="saveSettings" title="将当前设置替换变量后保存 (保存的是 C:\\test.exe)">保存设置</button>
-                                <button id="saveTemplateSettings" title="将当前设置保留变量后保存 (保存的是 {cppDir}\\{baseName}.exe)">保存模板设置</button>
+                                <button id="saveTemplateSettings" title="将当前设置保留变量后保存 (保存的是 <cppDir>\\<baseName>.exe)">保存模板设置</button>
                             </div>
                         </div>
                     </div>
@@ -1742,12 +1810,12 @@ class CppCompilerSidebarProvider {
                             <div class="subsection-title">文件读写</div>
                             <div class="text-input-container">
                                 <div class="text-input-label">输入文件</div>
-                                <input type="text" id="inputFile" value="" placeholder="输入文件路径" title="可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式">
+                                <input type="text" id="inputFile" value="" placeholder="输入文件路径" title="可以使用 <var> 占位符来使用自定义变量，<base> 占位符将会被替换为当前文件的无拓展名形式">
                                 <div class="save-status" id="inputFileStatus">✓ 已保存</div>
                             </div>
                             <div class="text-input-container">
                                 <div class="text-input-label">输出文件</div>
-                                <input type="text" id="outputFile" value="" placeholder="输入文件路径" title="可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式">
+                                <input type="text" id="outputFile" value="" placeholder="输入文件路径" title="可以使用 <var> 占位符来使用自定义变量，<base> 占位符将会被替换为当前文件的无拓展名形式">
                                 <div class="save-status" id="outputFileStatus">✓ 已保存</div>
                             </div>
                             <div class="checkbox-container">
@@ -1761,25 +1829,18 @@ class CppCompilerSidebarProvider {
                             <div class="subsection-title">反文件读写</div>
                             <div class="text-input-container">
                                 <div class="text-input-label">输入文件</div>
-                                <input type="text" id="unFileInputFile" value="" placeholder="输入文件路径" title="可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式">
+                                <input type="text" id="unFileInputFile" value="" placeholder="输入文件路径" title="可以使用 <var> 占位符来使用自定义变量，<base> 占位符将会被替换为当前文件的无拓展名形式">
                                 <div class="save-status" id="unFileInputFileStatus">✓ 已保存</div>
                             </div>
                             <div class="text-input-container">
                                 <div class="text-input-label">输出文件</div>
-                                <input type="text" id="unFileOutputFile" value="" placeholder="输入文件路径" title="可以使用 {var} 占位符来使用自定义变量，{base} 占位符将会被替换为当前文件的无拓展名形式">
+                                <input type="text" id="unFileOutputFile" value="" placeholder="输入文件路径" title="可以使用 <var> 占位符来使用自定义变量，<base> 占位符将会被替换为当前文件的无拓展名形式">
                                 <div class="save-status" id="unFileOutputFileStatus">✓ 已保存</div>
                             </div>
-                            ${process.platform !== 'darwin' ? `
                             <div class="checkbox-container">
                                 <input type="checkbox" id="useUnFileRedirect">
                                 <label for="useUnFileRedirect">启用反文件读写</label>
                             </div>
-                            ` : `
-                            <div class="checkbox-container" title="macOS 系统不可用">
-                                <input type="checkbox" id="useUnFileRedirect" disabled>
-                                <label for="useUnFileRedirect">启用反文件读写</label>
-                            </div>
-                            `}
                         </div>
                     </div>
                 </div>
@@ -1824,27 +1885,27 @@ class CppCompilerSidebarProvider {
                 const VARIABLE_CONFIG = {
                     // 定义变量获取逻辑
                     definitions: {
-                        '{var}': {
+                        '<var>': {
                             desc: '自定义变量的值',
                             valueFn: function(ctx) { return ctx.varValue; }
                         },
-                        '{base}': {
+                        '<base>': {
                             desc: '文件名(无后缀)',
                             valueFn: function(ctx) { return ctx.baseName; }
                         },
-                        '{baseName}': {
+                        '<baseName>': {
                             desc: '文件名(无后缀)',
                             valueFn: function(ctx) { return ctx.baseName; }
                         },
-                        '{cppDir}': {
+                        '<cppDir>': {
                             desc: '源文件所在目录',
                             valueFn: function(ctx) { return ctx.cppDir; }
                         },
-                        '{workdir}': {
+                        '<workdir>': {
                             desc: '工作区目录',
                             valueFn: function(ctx) { return ctx.workdir; }
                         },
-                        '{tmpDir}': {
+                        '<tmpDir>': {
                             desc: '系统临时目录',
                             valueFn: function(ctx) { return ctx.tmpDir; }
                         }
@@ -1852,24 +1913,24 @@ class CppCompilerSidebarProvider {
 
                     // 定义变量组
                     groups: {
-                        // 通用组：包含 {var}
-                        'common': ['{var}', '{base}'],
+                        // 通用组：包含 <var>
+                        'common': ['<var>', '<base>'],
 
-                        // 【修改点1】变量定义组：专门给 customVariable 使用，严禁包含 {var} 防止递归
-                        'varDef': ['{base}', '{cppDir}', '{workdir}'],
+                        // 【修改点1】变量定义组：专门给 customVariable 使用，严禁包含 <var> 防止递归
+                        'varDef': ['<base>', '<cppDir>', '<workdir>'],
 
                         // 文件操作组
-                        'fileOps': ['{var}', '{base}', '{cppDir}'],
+                        'fileOps': ['<var>', '<base>', '<cppDir>'],
 
-                        // 路径生成组：严禁包含 {var}
-                        'pathGen': ['{cppDir}', '{baseName}', '{workdir}', '{tmpDir}']
+                        // 路径生成组：严禁包含 <var>
+                        'pathGen': ['<cppDir>', '<baseName>', '<workdir>', '<tmpDir>']
                     },
 
                     // 绑定输入框规则
                     inputRules: {
                         'moreCommand': 'common',
 
-                        // 【修改点2】自定义变量使用 varDef 组 (不含 {var})
+                        // 【修改点2】自定义变量使用 varDef 组 (不含 <var>)
                         'customVariable': 'varDef',
 
                         'inputFile': 'fileOps',
