@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "7.1.0",
+	"version": "7.2.0",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -52,7 +52,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onLanguage:cpp"
+		"onLanguage:cpp",
+		"onView:cppCompilerSidebar"
 	],
 	"main": "./extension.js",
 	"contributes": {
@@ -254,6 +255,11 @@
 					"default": "<cppDir>/<baseName>",
 					"description": "输出的可执行文件位置 (windows下可以省略 .exe 后缀，可以使用 <cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)"
 				},
+				"dream-cpp-compiler.WorkDirDefaultValue": {
+					"type": "string",
+					"default": "<cppDir>",
+					"description": "Default working directory for running (supports <cppDir> <baseName> <workdir> <tmpDir>)"
+				},
 				"dream-cpp-compiler.staticOption": {
 					"type": "string",
 					"default": "-static",
@@ -263,6 +269,12 @@
 					"type": "string",
 					"default": "\"<cPath>\" \"<cppPath>\" <option> -o \"<outPath>\"",
 					"description": "编译命令，使用 <cPath> 代表编译器路径，<cppPath> 代表源文件路径，<outPath> 代表输出的可执行文件位置，<option> 代表编译选项 (如果是 cl 编译器，需调整为 `\"<cPath>\" \"<cppPath>\" <option> -Fe:\"<outPath>\"`)"
+				},
+				"dream-cpp-compiler.maxTempCodes": {
+					"type": "integer",
+					"default": 20,
+					"minimum": 1,
+					"description": "临时代码最大数量，超过后将清空临时代码目录 (tmpdir/dream-cpp-compiler/tmpcode)"
 				}
 			}
 		}
