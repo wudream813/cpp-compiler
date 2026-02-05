@@ -53,6 +53,24 @@ function getTempDir() {
     return TempDir;
 }
 
+function getTempCodeRoot() {
+    return path.join(os.tmpdir(), 'dream-cpp-compiler', 'tmpcode');
+}
+
+function cleanupTempCodeRoot() {
+    const tmpRoot = getTempCodeRoot();
+    const maxTempCodes = getConfig('maxTempCodes') || 20;
+    try {
+        const entries = fs.readdirSync(tmpRoot, { withFileTypes: true });
+        const subDirs = entries.filter(e => e.isDirectory());
+        if (subDirs.length > maxTempCodes) {
+            fs.rmSync(tmpRoot, { recursive: true, force: true });
+        }
+    } catch (e) {
+        // ignore if tmpRoot does not exist or cannot be read
+    }
+}
+
 function getConfig(section) {
     const config = vscode.workspace.getConfiguration('dream-cpp-compiler').inspect(section);
     return config ? config.globalValue : undefined;
@@ -98,6 +116,35 @@ function ShowErrors(Array) {
     Array.forEach(str => {
         commandOutput.error(str);
     });
+}
+
+async function GetTempPath(content) {
+    const tmpRoot = getTempCodeRoot();
+
+    // 1. ??????????????????? tmpcode ??
+    cleanupTempCodeRoot();
+
+
+    const rand = Math.random().toString(36).slice(2, 8); // 六位左右
+    const stamp = Date.now();
+    const tmpDir = path.join(tmpRoot, `${stamp}-${rand}`);
+
+    try {
+        fs.mkdirSync(tmpDir, { recursive: true });
+    } catch (e) {
+        ShowError(`创建临时代码目录失败：${e.message}`);
+    }
+
+    // 4. 在该目录里保存 code.cpp
+    try {
+        const codePath = path.join(tmpDir, 'code.cpp');
+        fs.writeFileSync(codePath, content, 'utf8');
+    } catch (e) {
+        ShowError(`写入临时代码文件失败：${e.message}`);
+    }
+
+    // 5. 返回路径（建议返回 { codePath, tmpDir } 两个信息）
+    return tmpDir;
 }
 
 function GetExePath(cppPath) {
@@ -171,6 +218,8 @@ function parseFileHeaderConfig(filePath) {
         moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/<base>/g, baseName),
         customVariable: getConfig('customVariableDefaultValue') || '',
         outputPath: (getConfig('outputPath') || '<cppDir>/<baseName>'),
+        WorkDir: (getConfig('WorkDirDefaultValue') || '<cppDir>'),
+        tempCppPath: '',
         staticOption: getConfig('staticOption') || '-static',
         compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
     };
@@ -247,6 +296,9 @@ function parseFileHeaderConfig(filePath) {
                     break;
                 case 'customvariable':
                     config.customVariable = value;
+                    break;
+                case 'workdir':
+                    config.WorkDir = value;
                     break;
             }
         }
@@ -385,14 +437,69 @@ function checkFilePath() {
     }
 
     if (editor.document.uri.scheme !== 'file') {
-        vscode.window.showErrorMessage('活动文件不是本地文件！');
-        return null;
+        return "TEMP_FILE";
     }
 
     return document.uri.fsPath;
 }
 
-async function CompileModule(filePath, ModuleName, executablePath, compilerOption) {
+async function syncEditorContentToFile(targetFilePath, originalFilePath) {
+    if (!targetFilePath || targetFilePath === "TEMP_FILE") return;
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+
+    const doc = editor.document;
+    const originalPath = originalFilePath || targetFilePath;
+
+    if (doc.uri.scheme === 'file' && doc.uri.fsPath === originalPath) {
+        if (doc.isDirty) {
+            await doc.save();
+        }
+    }
+
+    if (doc.uri.scheme !== 'file' || doc.uri.fsPath !== targetFilePath) {
+        try {
+            fs.writeFileSync(targetFilePath, doc.getText(), 'utf8');
+        } catch (e) {
+            ShowError(`写入编译文件失败: ${e.message}`);
+        }
+    }
+}
+
+async function resolveCompileSourcePath(filePath) {
+    if (!filePath || filePath === "TEMP_FILE") return null;
+
+    const useTemp = !!getFileConfig(filePath, 'useTempFile');
+    if (!useTemp) return filePath;
+
+    if (path.basename(filePath).toLowerCase() === 'code.cpp') {
+        return filePath;
+    }
+
+    let tempDir = getFileConfig(filePath, 'tempDir');
+    let tempCppPath = getFileConfig(filePath, 'tempCppPath');
+
+    if (tempDir && !tempCppPath) {
+        tempCppPath = path.join(tempDir, "code.cpp");
+        setFileConfig(filePath, 'tempCppPath', tempCppPath);
+    }
+
+    if (!tempDir || !fs.existsSync(tempDir)) {
+        const editor = vscode.window.activeTextEditor;
+        const content = editor ? editor.document.getText() : fs.readFileSync(filePath, 'utf8');
+        tempDir = await GetTempPath(content);
+        tempCppPath = path.join(tempDir, "code.cpp");
+        setFileConfig(filePath, 'tempDir', tempDir);
+        setFileConfig(filePath, 'tempCppPath', tempCppPath);
+        setFileConfig(tempCppPath, 'useTempFile', true);
+        setFileConfig(tempCppPath, 'tempDir', tempDir);
+    }
+
+    return tempCppPath || filePath;
+}
+
+async function CompileModule(filePath, ModuleName, executablePath) {
     const compilerPath = getConfig('compilerPath') || 'g++';
     const compileCommand = `"${compilerPath}" "${filePath}" ${getConfig('staticOption') || '-static'} -o "${executablePath}"`;
     ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${compileCommand}\n`]);
@@ -419,8 +526,11 @@ async function CompileModule(filePath, ModuleName, executablePath, compilerOptio
     });
 }
 
-async function OnlyCompile(askUser, filePath) {
+async function OnlyCompile(askUser, filePath, sourcePathOverride) {
     if(!filePath)return 0;
+
+    const sourcePath = sourcePathOverride || filePath;
+    await syncEditorContentToFile(sourcePath, filePath);
 
     const compilerPath = getConfig('compilerPath') || 'g++';
     const iSstatic = getFileConfig(filePath, 'useStaticLinking');
@@ -431,7 +541,7 @@ async function OnlyCompile(askUser, filePath) {
 
     let compileCommand = compileCommandTemplate
         .replace(/<cPath>/g, compilerPath)
-        .replace(/<cppPath>/g, filePath)
+        .replace(/<cppPath>/g, sourcePath)
         .replace(/<option>/g, compileOptions)
         .replace(/<outPath>/g, executablePath);
 
@@ -463,7 +573,7 @@ async function OnlyCompile(askUser, filePath) {
             ShowWarn('删除旧可执行文件时出错:' + err);
         }
 
-        const compileCommand = `"${compilerPath}" "${filePath}" ${compileOptions} -o "${executablePath}"`;
+        const compileCommand = `"${compilerPath}" "${sourcePath}" ${compileOptions} -o "${executablePath}"`;
         ShowInfos([`开始编译，编译程序：${filePath}`, `编译命令：${compileCommand}\n`]);
 
         compileStatus.text = '$(loading~spin) 正在编译...';
@@ -550,18 +660,32 @@ async function OnlyCompile(askUser, filePath) {
 }
 
 // 核心编译逻辑
-async function compileAndRun(terminalType) {
-    const FilePath = checkFilePath();
-    const result = await OnlyCompile(0, FilePath);
+async function compileAndRun(terminalType, filePathOverride) {
+    const FilePath = filePathOverride || checkFilePath();
+    if (!FilePath || FilePath === "TEMP_FILE") return 0;
+    const sourcePath = await resolveCompileSourcePath(FilePath);
+    if (!sourcePath) return 0;
+    const result = await OnlyCompile(0, FilePath, sourcePath);
     if (result) {
         await runProgram(FilePath, terminalType);
     }
+}
+
+async function compileOnly(filePathOverride) {
+    const FilePath = filePathOverride || checkFilePath();
+    if (!FilePath || FilePath === "TEMP_FILE") return 0;
+    const sourcePath = await resolveCompileSourcePath(FilePath);
+    if (!sourcePath) return 0;
+    return await OnlyCompile(1, FilePath, sourcePath);
 }
 
 // 运行程序
 async function runProgram(filePath, terminalType) {
     const executablePath = GetExePath(filePath);
     const programDir = path.dirname(executablePath);
+    const useTempFileFlag = !!getFileConfig(filePath, 'useTempFile');
+    const WorkDir = getFileConfig(filePath, 'WorkDir') || '';
+    const effectiveWorkdir = WorkDir ? WorkDir : programDir;
     const UseConsoleInfo = getConfig('useConsoleInfo') || false;
 
     // 文件特定配置
@@ -583,7 +707,7 @@ async function runProgram(filePath, terminalType) {
 
     // ---------------- Windows ----------------
     if (process.platform === 'win32') {
-        cdCommand = `cd /d "${programDir}"`;
+        cdCommand = `cd /d "${effectiveWorkdir}"`;
         runCommand = await buildRunCommandWin(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile
@@ -591,7 +715,7 @@ async function runProgram(filePath, terminalType) {
 
     // ---------------- Linux ----------------
     } else if (process.platform === 'linux') {
-        cdCommand = `cd "${programDir}"`;
+        cdCommand = `cd "${effectiveWorkdir}"`;
         // 注意：这里传入 toolPath 作为 baseDir
         runCommand = await buildRunCommandLinux(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
@@ -600,7 +724,7 @@ async function runProgram(filePath, terminalType) {
 
     // ---------------- macOS (新增/修改) ----------------
     } else if (process.platform === 'darwin') {
-        cdCommand = `cd "${programDir}"`;
+        cdCommand = `cd "${effectiveWorkdir}"`;
 
         // 使用之前定义的构建函数生成核心 Shell 命令
         runCommand = await buildRunCommandMacOS(toolPath, executablePath, {
@@ -877,44 +1001,63 @@ async function buildTerminalCommandMacOS(cdCommand, runCommand, moreCommand) {
 class CppCompilerSidebarProvider {
     constructor(context) {
         this._context = context;
+        // 记录“非本地 C++ 文件”中，哪些文档启用了临时文件编译
+        this._nonLocalTempMap = new Map(); // docKey -> { tempCppPath, tempDir }
     }
 
     updateButtonStates() {
         if (!sidebarPanel) return;
 
-        // 严格检查是否为有效的C++文件
         const editor = vscode.window.activeTextEditor;
-        const isCppFile = editor &&
-            editor.document &&
-            editor.document.languageId === 'cpp' &&
-            editor.document.uri.scheme === 'file'; // 确保是本地文件
+        const document = editor && editor.document;
+
+        let enabled = false;
+
+        // 只有 C++ 文件才有意义
+            if (document && document.languageId === 'cpp') {
+                if (document.uri.scheme === 'file') {
+                    // 本地 C++ 文件：始终启用
+                    enabled = true;
+                } else {
+                    // 非本地 C++ 文件：仅当当前文档勾选了“以临时文件进行编译运行”时启用
+                    const docKey = document.uri.toString();
+                    enabled = this._nonLocalTempMap.has(docKey);
+                }
+            }
 
         sidebarPanel.webview.postMessage({
             type: 'updateButtonStates',
-            enabled: isCppFile
+            enabled: enabled
         });
     }
 
     resolveWebviewView(webviewView) {
-        sidebarPanel = webviewView;
+        try {
+            sidebarPanel = webviewView;
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [
-                this._context.extensionUri
-            ]
-        };
+            webviewView.webview.options = {
+                enableScripts: true,
+                localResourceRoots: [
+                    this._context.extensionUri
+                ]
+            };
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+            webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-
-        webviewView.onDidChangeVisibility(() => {
-            // 当视图重新可见时更新按钮状态
-            if (webviewView.visible) {
-                this.updateButtonStates();
-                this.updateWebviewContent();
+            webviewView.onDidChangeVisibility(() => {
+                // 当视图重新可见时更新按钮状态
+                if (webviewView.visible) {
+                    this.updateButtonStates();
+                    this.updateWebviewContent();
+                }
+            });
+        } catch (e) {
+            const errMsg = `cppCompilerSidebar 还原失败: ${e?.message || e}`;
+            ShowError(errMsg);
+            if (webviewView?.webview) {
+                webviewView.webview.html = `<!DOCTYPE html><html><body><pre>${errMsg}</pre></body></html>`;
             }
-        });
+        }
 
         // 监听活动编辑器变化
         const editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor(() => {
@@ -941,7 +1084,7 @@ class CppCompilerSidebarProvider {
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
                     ShowInfos([`用户在侧边栏选择了编译后在内置终端运行`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 "${customVariable}"`]);
-                    compileAndRun('internal');
+                    compileAndRun('internal', data.filePath);
                     break;
                 }
 
@@ -954,7 +1097,7 @@ class CppCompilerSidebarProvider {
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
                     ShowInfos([`用户在侧边栏选择了编译后在外部终端运行`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 "${customVariable}"`]);
-                    compileAndRun('external');
+                    compileAndRun('external', data.filePath);
                     break;
                 }
 
@@ -967,7 +1110,7 @@ class CppCompilerSidebarProvider {
                     const useUnFileRedirect = getFileConfig(data.filePath, 'useUnFileRedirect');
 
                     ShowInfos([`用户在侧边栏选择了仅编译`, `编译选项为：${compileOptions}`, `${useStatic ? '启用' : '禁用'}静态编译`, `${useConsoleInfo ? '使用' : '禁用'} ConsoleInfo.exe 运行程序`, `${useFileRedirect ? `启用文件重定向，输入文件为 ${getFileConfig(data.filePath, 'inputFile')}，输出文件为 ${getFileConfig(data.filePath, 'outputFile')}` : '禁用文件重定向'}`, `${useUnFileRedirect ? `启用反文件重定向，输入文件为 ${getFileConfig(data.filePath, 'unFileInputFile')}，输出文件为 ${getFileConfig(data.filePath, 'unFileOutputFile')}` : '禁用反文件重定向'}`, `${moreCommand ? `额外运行命令为 ${moreCommand}` : '无额外运行命令'}`, `自定义变量 var 为 "${customVariable}"`]);
-                    OnlyCompile(1, checkFilePath());
+                    compileOnly(data.filePath);
                     break;
                 }
 
@@ -1069,14 +1212,89 @@ class CppCompilerSidebarProvider {
                     break;
                 }
 
+                case 'updateWorkDir': {
+                    ShowInfo(`用户在侧边栏更新了临时文件 ${data.filePath} 的工作目录，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'WorkDir', data.value);
+                    this.updateWebviewContent();
+                    break;
+                }
+
                 case 'saveConfigToFile': {
                     try {
                         updateCppConfigInEditor(vscode.window.activeTextEditor, data.config);
+                        if (data.filePath && data.config) {
+                            Object.keys(data.config).forEach(key => {
+                                setFileConfig(data.filePath, key, data.config[key]);
+                            });
+                        }
 
                         ShowInfo(`保存了 ${data.filePath} 的${data.mode === 'raw' ? '模板配置 (保留变量)' : '设置 (绝对路径)'}，内容：${JSON.stringify(data.config, null, 4)}`)
                     } catch (e) {
                         vscode.window.showErrorMessage(`保存失败: ${e.message}`);
                     }
+                    break;
+                }
+
+                case 'toggleTempFile': {
+                    const editor = vscode.window.activeTextEditor;
+                    const document = editor && editor.document;
+                    const docKey = document ? document.uri.toString() : null;
+
+                    if (!data.enabled) {
+                        // 取消勾选：清理临时目录 + 关闭非本地文件的启用状态
+                        if (data.filePath) {
+                            setFileConfig(data.filePath, 'useTempFile', false);
+                        }
+                        const entry = docKey ? this._nonLocalTempMap.get(docKey) : null;
+                        const tempDirFromConfig = data.filePath ? getFileConfig(data.filePath, 'tempDir') : '';
+                        const dirToRemove = entry?.tempDir || tempDirFromConfig || data.tempDir;
+
+                        ShowInfo(`用户在侧边栏取消了临时文件 ${data.filePath} 以临时文件编译运行设置，即将删除文件夹 ${dirToRemove}`);
+
+                        if (dirToRemove) {
+                            try {
+                                fs.rmSync(dirToRemove, { recursive: true, force: true });
+                            } catch (e) {
+                                ShowError(`删除临时目录失败：${e.message}`);
+                            }
+                        }
+                        if (data.filePath) {
+                            setFileConfig(data.filePath, 'tempDir', '');
+                            setFileConfig(data.filePath, 'tempCppPath', '');
+                        }
+
+                        if (docKey) {
+                            this._nonLocalTempMap.delete(docKey);
+                        }
+
+                        this.updateWebviewContent(null);
+                    } else {
+                        // 勾选：为当前文档创建临时代码目录，并记录状态
+                        const tempDir = await GetTempPath(vscode.window.activeTextEditor.document.getText());
+                        const tempCppPath = path.join(tempDir, "code.cpp");
+                        setFileConfig(tempCppPath, 'useTempFile', true);
+                        setFileConfig(tempCppPath, 'tempDir', tempDir);
+                        if (document && document.languageId !== 'cpp') {
+                            try {
+                                await vscode.languages.setTextDocumentLanguage(document, 'cpp');
+                            } catch (e) {
+                                ShowWarn(`切换语言为 cpp 失败：${e.message}`);
+                            }
+                        }
+                        if (data.filePath) {
+                            setFileConfig(data.filePath, 'useTempFile', true);
+                            setFileConfig(data.filePath, 'tempDir', tempDir);;
+                        }
+
+                        if (document && docKey) {
+                            this._nonLocalTempMap.set(docKey, { tempCppPath, tempDir });
+                        }
+
+                        this.updateWebviewContent(tempCppPath);
+                    }
+
+                    // 勾选 / 取消后都重新刷新按钮状态
+                    this.updateButtonStates();
                     break;
                 }
             }
@@ -1090,14 +1308,28 @@ class CppCompilerSidebarProvider {
         });
     }
 
-    updateWebviewContent() {
+    updateWebviewContent(filePath) {
         if (!sidebarPanel) return;
 
         const useConsoleInfo = getConfig('useConsoleInfo') || false;
         const compilerPath = getConfig('compilerPath') || 'g++';
 
+        // 如果未显式指定 filePath，则根据当前活动编辑器推断
+        if (!filePath) {
+            const editor = vscode.window.activeTextEditor;
+            const document = editor && editor.document;
+            if (document && document.languageId === 'cpp') {
+                const docKey = document.uri.toString();
+                const entry = this._nonLocalTempMap.get(docKey);
+                if (entry) filePath = entry.tempCppPath;
+                else if (document.uri.scheme === 'file') {
+                    // 本地文件：直接使用真实路径
+                    filePath = document.uri.fsPath;
+                }
+            }
+        }
+
         // 获取当前文件的配置
-        const editor = vscode.window.activeTextEditor;
         let inputFile = '';
         let outputFile = '';
         let unFileInputFile = '';
@@ -1109,7 +1341,7 @@ class CppCompilerSidebarProvider {
         let runControlCardOpen = true;
         let advancedCardOpen = false;
         let fileOperationsCardOpen = false;
-        let filePath = '', baseName = '';
+        let baseName = '';
         let compileOptions = '';
         let useStatic = false;
         let moreCommand = '';
@@ -1118,9 +1350,9 @@ class CppCompilerSidebarProvider {
         let cppDir = '';
         let workdir = '';
         let tmpDir = '';
+        let WorkDir = '';
 
-        if (editor && editor.document && editor.document.languageId === 'cpp' && editor.document.uri.scheme === 'file') {
-            filePath = editor.document.uri.fsPath;
+        if (filePath) {
             baseName = path.basename(filePath, ".cpp");
             inputFile = getFileConfig(filePath, 'inputFile');
             outputFile = getFileConfig(filePath, 'outputFile');
@@ -1138,9 +1370,10 @@ class CppCompilerSidebarProvider {
             moreCommand = getFileConfig(filePath, 'moreCommand');
             customVariable = getFileConfig(filePath, 'customVariable');
             outputPath = getFileConfig(filePath, 'outputPath');
+            WorkDir = getFileConfig(filePath, 'WorkDir') || '';
             cppDir = path.dirname(filePath) || '';
             workdir = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || cppDir || '';
-            tmpDir = require('os').tmpdir();
+            tmpDir = os.tmpdir();
         }
 
         sidebarPanel.webview.postMessage({
@@ -1168,7 +1401,8 @@ class CppCompilerSidebarProvider {
             useStaticLinking: useStatic,
             moreCommand: moreCommand,
             customVariable: customVariable,
-            outputPath: outputPath
+            outputPath: outputPath,
+            WorkDir: WorkDir
         });
 
         sidebarPanel.webview.postMessage({
@@ -1757,6 +1991,11 @@ class CppCompilerSidebarProvider {
                             <input type="checkbox" id="useConsoleInfo">
                             <label for="useConsoleInfo">使用 ConsoleInfo 运行程序</label>
                         </div>
+                        <div class="text-input-container">
+                            <div class="text-input-label">在指定目录运行</div>
+                            <input type="text" id="WorkDir" placeholder="留空以使用自动保存的路径" title="留空以使用自动保存的路径">
+                            <div class="save-status" id="WorkDirStatus">✓ 已保存</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1791,6 +2030,12 @@ class CppCompilerSidebarProvider {
                                 <button id="saveSettings" title="将当前设置替换变量后保存 (保存的是 C:\\test.exe)">保存设置</button>
                                 <button id="saveTemplateSettings" title="将当前设置保留变量后保存 (保存的是 <cppDir>\\<baseName>.exe)">保存模板设置</button>
                             </div>
+                        </div>
+
+                        <!-- 以临时文件进行编译运行 -->
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="useTempFile">
+                            <label for="useTempFile">以临时文件进行编译运行</label>
                         </div>
                     </div>
                 </div>
@@ -1878,6 +2123,8 @@ class CppCompilerSidebarProvider {
             <script>
                 const vscode = acquireVsCodeApi();
                 let filePath = '', baseName = ''; // 全局状态
+                let useTempFile = false;
+                let WorkDir = '';
 
                 // ==========================================
                 // 1. 配置区域
@@ -1937,7 +2184,8 @@ class CppCompilerSidebarProvider {
                         'outputFile': 'fileOps',
                         'unFileInputFile': 'fileOps',
                         'unFileOutputFile': 'fileOps',
-                        'outputPath': 'pathGen'
+                        'outputPath': 'pathGen',
+                        'WorkDir': 'pathGen'
                     }
                 };
 
@@ -2108,10 +2356,14 @@ class CppCompilerSidebarProvider {
                             'unFileInputFile': 'updateUnFileInputFile',
                             'unFileOutputFile': 'updateUnFileOutputFile',
                             'outputPath': 'updateOutputPath',
-                            'customVariable': 'updateCustomVariable'
+                            'customVariable': 'updateCustomVariable',
+                            'WorkDir': 'updateWorkDir'
                         };
 
                         if (messageMap[currentInputId] && filePath) {
+                            if (currentInputId === 'WorkDir') {
+                                WorkDir = finalRaw;
+                            }
                             vscode.postMessage({
                                 type: messageMap[currentInputId],
                                 filePath: filePath,
@@ -2171,8 +2423,10 @@ class CppCompilerSidebarProvider {
                     if (data.type === 'updateConfig') {
                         document.getElementById('useConsoleInfo').checked = data.useConsoleInfo;
                         document.getElementById('compilerPath').value = data.compilerPath;
+                        // 恢复“以临时文件进行编译运行”的勾选状态和子区块显示
 
                         if (data.isCppFile) {
+                            WorkDir = data.WorkDir || '';
                             document.getElementById('compileOptions').value = data.compileOptions;
                             document.getElementById('staticLinking').checked = data.useStaticLinking;
                             document.getElementById('useFileRedirect').checked = data.useFileRedirect;
@@ -2186,6 +2440,7 @@ class CppCompilerSidebarProvider {
                             updateInputWithRaw('moreCommand', data.moreCommand);
                             updateInputWithRaw('customVariable', data.customVariable);
                             updateInputWithRaw('outputPath', data.outputPath);
+                            updateInputWithRaw('WorkDir', data.WorkDir);
                         }
 
                         ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(function(id) {
@@ -2207,7 +2462,7 @@ class CppCompilerSidebarProvider {
                             if(el) el.disabled = !enabled;
                         });
 
-                        const inputIds = Object.keys(VARIABLE_CONFIG.inputRules).concat(['compileOptions']);
+                        const inputIds = Object.keys(VARIABLE_CONFIG.inputRules).concat(['compileOptions', 'WorkDir']);
                         inputIds.forEach(function(id) {
                             const el = document.getElementById(id);
                             if(el) {
@@ -2245,6 +2500,16 @@ class CppCompilerSidebarProvider {
                         vscode.postMessage({ type: 'updateCompileOptions', filePath: filePath, value: e.target.value.trim() });
                         showSaveStatus('compileOptionsStatus');
                     }
+                });
+
+                document.getElementById('useTempFile').addEventListener('change', (e) => {
+                    useTempFile = e.target.checked;
+                    vscode.postMessage({
+                        type: 'toggleTempFile',
+                        enabled: useTempFile,
+                        filePath: filePath,
+                        tempDir: WorkDir
+                    });
                 });
 
                 const checkMap = {
@@ -2303,7 +2568,7 @@ class CppCompilerSidebarProvider {
                     const variableFields = [
                         'inputFile', 'outputFile',
                         'unFileInputFile', 'unFileOutputFile',
-                        'outputPath', 'moreCommand', 'customVariable'
+                        'outputPath', 'moreCommand', 'customVariable', 'WorkDir'
                     ];
 
                     variableFields.forEach(function(id) {
@@ -2349,6 +2614,9 @@ class CppCompilerSidebarProvider {
 
 // 激活扩展
 function activate(context) {
+    // 清理超出限制的临时代码目录
+    cleanupTempCodeRoot();
+
     // 注册侧边栏提供者
     const sidebarProvider = new CppCompilerSidebarProvider(context);
     context.subscriptions.push(
@@ -2369,7 +2637,7 @@ function activate(context) {
     );
     const cppCompile = vscode.commands.registerCommand(
         'dream-cpp-compiler.cppCompile',
-        () => OnlyCompile(1, checkFilePath())
+        () => compileOnly()
     );
 
     const OpenTerminalDisposable = vscode.commands.registerCommand(
@@ -2425,4 +2693,4 @@ function deactivate() { }
 module.exports = {
     activate,
     deactivate
-};
+}

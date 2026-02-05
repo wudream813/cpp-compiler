@@ -1,3 +1,5 @@
+# dream-cpp-compiler v7.2.0
+> 
 # dream-cpp-compiler v7.1.0
 > UI 更新，添加保存设置功能
 > 现在编辑会保存模板字符串了
