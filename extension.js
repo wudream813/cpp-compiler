@@ -67,7 +67,7 @@ function cleanupTempCodeRoot() {
             fs.rmSync(tmpRoot, { recursive: true, force: true });
         }
     } catch (e) {
-        // ignore if tmpRoot does not exist or cannot be read
+        
     }
 }
 
@@ -121,7 +121,6 @@ function ShowErrors(Array) {
 async function GetTempPath(content) {
     const tmpRoot = getTempCodeRoot();
 
-    // 1. ??????????????????? tmpcode ??
     cleanupTempCodeRoot();
 
 
