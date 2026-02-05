@@ -253,12 +253,12 @@
 				"dream-cpp-compiler.outputPath": {
 					"type": "string",
 					"default": "<cppDir>/<baseName>",
-					"description": "输出的可执行文件位置 (windows下可以省略 .exe 后缀，可以使用 <cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)"
+					"description": "输出的可执行文件位置 (windows下可以省略 .exe 后缀，可以使用 <cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作区目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)"
 				},
 				"dream-cpp-compiler.WorkDirDefaultValue": {
 					"type": "string",
 					"default": "<cppDir>",
-					"description": "Default working directory for running (supports <cppDir> <baseName> <workdir> <tmpDir>)"
+					"description": "工作目录 (可以使用 <cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作区目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)"
 				},
 				"dream-cpp-compiler.staticOption": {
 					"type": "string",
