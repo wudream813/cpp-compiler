@@ -67,7 +67,7 @@ function cleanupTempCodeRoot() {
             fs.rmSync(tmpRoot, { recursive: true, force: true });
         }
     } catch (e) {
-        
+
     }
 }
 
@@ -682,17 +682,37 @@ async function compileOnly(filePathOverride) {
 async function runProgram(filePath, terminalType) {
     const executablePath = GetExePath(filePath);
     const programDir = path.dirname(executablePath);
-    const useTempFileFlag = !!getFileConfig(filePath, 'useTempFile');
-    const WorkDir = getFileConfig(filePath, 'WorkDir') || '';
+    const baseName = path.basename(filePath, '.cpp');
+    const cppDir = path.dirname(filePath);
+    const workdir = vscode.workspace.workspaceFolders ?
+        vscode.workspace.workspaceFolders[0].uri.fsPath : cppDir;
+    const tmpDir = os.tmpdir();
+    const WorkDir = (getFileConfig(filePath, 'WorkDir') || '')
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName)
+        .replace(/<workdir>/g, workdir)
+        .replace(/<tmpDir>/g, tmpDir);
     const effectiveWorkdir = WorkDir ? WorkDir : programDir;
     const UseConsoleInfo = getConfig('useConsoleInfo') || false;
 
     // 文件特定配置
     const customVariable = getFileConfig(filePath, 'customVariable');
-    const inputFile = getFileConfig(filePath, 'inputFile').replace(/<var>/g, customVariable);
-    const outputFile = getFileConfig(filePath, 'outputFile').replace(/<var>/g, customVariable);
-    const unFileInputFile = getFileConfig(filePath, 'unFileInputFile').replace(/<var>/g, customVariable);
-    const unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile').replace(/<var>/g, customVariable);
+    const inputFile = getFileConfig(filePath, 'inputFile')
+        .replace(/<var>/g, customVariable)
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName);
+    const outputFile = getFileConfig(filePath, 'outputFile')
+        .replace(/<var>/g, customVariable)
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName);
+    const unFileInputFile = getFileConfig(filePath, 'unFileInputFile')
+        .replace(/<var>/g, customVariable)
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName);
+    const unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile')
+        .replace(/<var>/g, customVariable)
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName);
     const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
 
@@ -700,7 +720,10 @@ async function runProgram(filePath, terminalType) {
     const toolPath = path.join(__dirname, 'tools');
 
     // 处理额外命令
-    let moreCommand = getFileConfig(filePath, 'moreCommand').replace(/<var>/g, customVariable);
+    let moreCommand = getFileConfig(filePath, 'moreCommand')
+        .replace(/<var>/g, customVariable)
+        .replace(/<cppDir>/g, cppDir)
+        .replace(/<baseName>/g, baseName);
 
     let cdCommand, runCommand;
 
@@ -712,6 +735,10 @@ async function runProgram(filePath, terminalType) {
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
 
+        if (moreCommand) {
+            runCommand += `& ${moreCommand}`;
+        }
+
     // ---------------- Linux ----------------
     } else if (process.platform === 'linux') {
         cdCommand = `cd "${effectiveWorkdir}"`;
@@ -720,6 +747,10 @@ async function runProgram(filePath, terminalType) {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
+
+        if (moreCommand) {
+            runCommand += `; ${moreCommand}`;
+        }
 
     // ---------------- macOS (新增/修改) ----------------
     } else if (process.platform === 'darwin') {
@@ -730,6 +761,10 @@ async function runProgram(filePath, terminalType) {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile
         });
+
+        if (moreCommand) {
+            runCommand += `; ${moreCommand}`;
+        }
     }
 
     // 如果编译辅助模块失败（返回 null），则终止运行
@@ -753,10 +788,6 @@ async function runProgram(filePath, terminalType) {
         RunTerminal.sendText('^C\x03'); // 发送 Ctrl+C 尝试中断之前的进程
         RunTerminal.sendText(cdCommand);
 
-        if (moreCommand) {
-            runCommand += `; ${moreCommand}`;
-        }
-
         RunTerminal.sendText(runCommand);
 
     // 2. 外部终端运行
@@ -764,11 +795,11 @@ async function runProgram(filePath, terminalType) {
         let terminalCommand;
 
         if (process.platform === 'win32') {
-            terminalCommand = await buildTerminalCommandWin(executablePath, cdCommand, runCommand, moreCommand);
+            terminalCommand = await buildTerminalCommandWin(executablePath, cdCommand, runCommand);
         } else if (process.platform === 'linux') {
-            terminalCommand = await buildTerminalCommandLinux(cdCommand, runCommand, moreCommand);
+            terminalCommand = await buildTerminalCommandLinux(executablePath, cdCommand, runCommand);
         } else if (process.platform === 'darwin') {
-            terminalCommand = await buildTerminalCommandMacOS(cdCommand, runCommand, moreCommand);
+            terminalCommand = await buildTerminalCommandMacOS(executablePath, cdCommand, runCommand);
         }
 
         ShowInfo(`外部终端命令: ${terminalCommand}`);
@@ -919,9 +950,8 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
     }
 }
 
-async function buildTerminalCommandLinux(cdCommand, runCommand, moreCommand) {
-    if(moreCommand)return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; ${moreCommand}; read -s -n1 -p '按任意键退出...'"`;
-    return `gnome-terminal --title="test" -- bash -c "${cdCommand}; ${runCommand}; read -s -n1 -p '按任意键退出...'"`;
+async function buildTerminalCommandLinux(executablePath, cdCommand, runCommand) {
+    return `gnome-terminal --title="${executablePath}" -- bash -c "${cdCommand}; ${runCommand}; read -s -n1 -p '按任意键退出...'"`;
 }
 
 // ---------------- macOS (Darwin) 构建命令 ----------------
@@ -980,20 +1010,15 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
     }
 }
 
-async function buildTerminalCommandMacOS(cdCommand, runCommand, moreCommand) {
+async function buildTerminalCommandMacOS(executablePath, cdCommand, runCommand) {
     let fullShellCmd = `${cdCommand}; ${runCommand};`;
-
-    if (moreCommand) {
-        fullShellCmd += ` ${moreCommand};`;
-    }
 
     fullShellCmd += ` echo; read -n 1 -s -p '按任意键退出...'; exit`;
 
-    const escapedCmd = fullShellCmd
-        .replace(/\\/g, '\\\\') // 先转义反斜杠
-        .replace(/"/g, '\\"');  // 再转义双引号
+    const escapedCmd = JSON.stringify(fullShellCmd);
+    const title = JSON.stringify(executablePath);
 
-    return `osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "${escapedCmd}"'`;
+    return `osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "${escapedCmd}"' -e 'tell application "Terminal" to set custom title of front window to "${title}"'`;
 }
 
 // 侧边栏提供者类

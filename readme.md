@@ -22,12 +22,15 @@
 - 右键快捷编译
 - 状态栏快捷编译
 - 快捷文件读写
-- 支持所有操作系统
-- 非 macOS 支持使用 ConsoleInfo 进行输出，还支持反文件读写
-- 自定义编译选项
+- 支持所有操作系统（windows, macOS, linux 及其发行版）
+- 能够使用 ConsoleInfo 进行输出（快速得知运行使用内存、运行时间）
+- 快速自定义编译选项
 - 设置编译器路径
 - 增强资源管理器
 - 根据文件头部文件注释自动设置编译选项等
+- 支持虚拟工作区，如 live share，支持临时文件（无需保存文件也可以编译）
+- 能够直接选择编译器路径
+- 可以设置运行后额外命令，方便使用 checker
 
 <details open>
 <summary>
@@ -65,7 +68,17 @@
 <td>✅</td>
 </tr>
 <tr>
-<td>详细显示运行时间（即 ConsoleInfo）</td>
+<td>详细显示运行时间、内存等（即 ConsoleInfo）</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>虚拟工作区、临时文件的支持</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>设置运行后额外命令，如使用 Special Judge</td>
 <td>❌</td>
 <td>✅</td>
 </tr>
@@ -131,17 +144,5 @@ int main(){
 }
 ```
 
-可以使用：
-- `compileoptions` 代表编译命令
-- `usestaticlinking` 是否静态编译
-- `outputpath` 代表输出路径
-- `compilecommand` 编译的命令
-- `inputfile` 输入文件
-- `outputfile` 输出文件
-- `unfileinputfile` 反文件读写的输入文件
-- `unfileoutputfile` 反文件读写的输出文件
-- `usefileredirect` 启用文件读写
-- `useunfileredirect` 启用反文件读写
-- `morecommand` 运行的额外命令
-- `customvariable` 自定义变量 var 的值
+可以使用侧边栏 "高级设置" 中的 "保存设置" 或 "保存模板设置" 自动保存
 </details>
