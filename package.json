@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "7.3.1",
+	"version": "7.4.0",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -294,7 +294,7 @@
 		"lint": "eslint .",
 		"pretest": "npm run lint",
 		"test": "node ./test/runTest.js",
-		"test:integration": "node tests/debug-integration-tests.js && node tests/debug-button-tests.js"
+		"test:integration": "node tests/debug-integration-tests.js && node tests/debug-button-tests.js && node tests/debug-cache-tests.js"
 	},
 	"devDependencies": {
 		"@types/node": "16.x",

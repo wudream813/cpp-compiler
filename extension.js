@@ -5,6 +5,8 @@ const os = require('os');
 const { exec } = require('child_process');
 const { compileSourceFile } = require('./src/compiler');
 const { debugFlags } = require('./src/debugIntegration');
+const { DebugBuildCache } = require('./src/debugCache');
+const debugBuildCache = new DebugBuildCache();
 
 // Global variables
 let statusBarInternal;
@@ -2660,18 +2662,23 @@ class CppCompilerSidebarProvider {
 
 // Versioned, optional in-process API for the companion GDB extension. It uses
 // separate temporary builds, not the ordinary compiler's output or hash cache.
-async function compileForDebug(filePath) {
+async function compileForDebug(filePath, options = {}) {
     if (!vscode.workspace.isTrusted) throw new Error('请先信任工作区，再编译调试');
     if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(?:cpp|cc|cxx|c\+\+)$/i.test(filePath)) throw new Error('联动调试仅支持本地 C++ 源文件');
     const config = fileConfigs[filePath] || parseFileHeaderConfig(filePath);
     if (!config) throw new Error('无法读取 C++ 源文件配置');
     const { flags, linkerFlags, ignored } = debugFlags(config.compileOptions, config.useStaticLinking);
-    const result = await compileSourceFile(filePath, {
-        compilerPath: getConfig('compilerPath') || 'g++',
-        compileFlags: flags, linkFlags: linkerFlags, vectorHelpers: true, autoCleanup: true
+    const compilerPath = getConfig('compilerPath') || 'g++';
+    const request = { source: filePath, helper: path.join(__dirname, 'src', 'vectorHelpers.cpp'),
+        compilerPath, flags, linkFlags: linkerFlags, signal: options.signal };
+    return debugBuildCache.acquire(request, async () => {
+        const result = await compileSourceFile(filePath, {
+            compilerPath, compileFlags: flags, linkFlags: linkerFlags, vectorHelpers: true,
+            autoCleanup: true, signal: options.signal
+        });
+        result.integration = { provider: 'dream-cpp-compiler', ignoredFlags: ignored };
+        return result;
     });
-    result.integration = { provider: 'dream-cpp-compiler', ignoredFlags: ignored };
-    return result;
 }
 
 async function startCompanionDebug(filePath) {
@@ -2774,7 +2781,7 @@ function activate(context) {
     return { apiVersion: 1, compileForDebug };
 }
 
-function deactivate() { }
+function deactivate() { debugBuildCache.dispose(); }
 
 module.exports = {
     activate,

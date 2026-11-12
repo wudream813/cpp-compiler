@@ -12,6 +12,7 @@ const os = require('os');
 const { appendBounded } = require('./outputLimits');
 const { openRegularFile } = require('./safeFiles');
 const { createBuildLease } = require('./buildCleanup');
+const { terminateProcessTree } = require('./cancelProcess');
 
 const SOURCE_EXTS = new Set(['.cpp', '.cc', '.cxx', '.c++', '.c']);
 const DIAG_REGEX = /^(.+?):(\d+):(?:(\d+):)?\s*(fatal error|error|warning|note|致命错误|错误|警告|附注):\s*(.+)$/i;
@@ -95,9 +96,11 @@ function compileSourceFile(sourceFile, options = {}) {
     const outputBinary = path.join(outDir, `program${extSuffix}`);
     const lease = options.autoCleanup ? createBuildLease(outDir, outputBinary) : null;
     let completed = false;
+    let removeAbort = () => {};
     function complete(result) {
       if (completed) return;
       completed = true;
+      removeAbort();
       if (lease) {
         lease.capture();
         if (result.success) result.cleanupBuild = lease.cleanup;
@@ -118,7 +121,9 @@ function compileSourceFile(sourceFile, options = {}) {
     try {
       proc = spawn(compiler, args, {
         cwd: options.cwd || sourceDir,
-        env: process.env
+        env: process.env,
+        detached: process.platform !== 'win32',
+        windowsHide: true
       });
     } catch (err) {
       return complete({
@@ -146,10 +151,19 @@ function compileSourceFile(sourceFile, options = {}) {
       });
     }
 
+    let cancelled = false;
+    const onAbort = () => { cancelled = true; terminateProcessTree(proc); };
+    if (options.signal) {
+      options.signal.addEventListener('abort', onAbort, { once: true });
+      removeAbort = () => options.signal.removeEventListener('abort', onAbort);
+      if (options.signal.aborted) onAbort();
+    }
+
     proc.stdout.on('data', (chunk) => { stdout = appendBounded(stdout, chunk.toString()); });
     proc.stderr.on('data', (chunk) => { stderr = appendBounded(stderr, chunk.toString()); });
 
     proc.on('error', (err) => {
+      if (cancelled) return;
       const errItem = {
         file: absSource,
         line: 1,
@@ -171,6 +185,8 @@ function compileSourceFile(sourceFile, options = {}) {
     });
 
     proc.on('close', (code) => {
+      if (cancelled) return complete({ success: false, cancelled: true, executable: null, commandLine,
+        stdout, stderr, durationMs: Date.now() - startTime, diagnostics: [], errors: [], warnings: [] });
       const diagnostics = parseCompilerDiagnostics(stderr, absSource);
       const errors = diagnostics.filter((d) => d.severity === 'error');
       const warnings = diagnostics.filter((d) => d.severity === 'warning');
