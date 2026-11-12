@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "7.2.1",
+	"version": "7.3.0",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -91,6 +91,11 @@
 				"command": "dream-cpp-compiler.runExternal",
 				"title": "外部终端运行",
 				"icon": "$(terminal)"
+			},
+			{
+				"command": "dream-cpp-compiler.startDebug",
+				"title": "GDB 调试",
+				"icon": "$(debug-alt)"
 			},
 			{
 				"command": "dream-cpp-compiler.cppCompile",

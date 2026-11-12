@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { exec } = require('child_process');
+const { compileSourceFile } = require('./src/compiler');
+const { debugFlags } = require('./src/debugIntegration');
 
 // Global variables
 let statusBarInternal;
@@ -1099,6 +1101,10 @@ class CppCompilerSidebarProvider {
         // 监听来自webview的消息
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
+                case 'startDebug': {
+                    await startCompanionDebug(data.filePath);
+                    break;
+                }
                 case 'runInternal': {
                     const customVariable = getFileConfig(data.filePath, 'customVariable') || '';
                     const moreCommand = getFileConfig(data.filePath, 'moreCommand') || '';
@@ -2010,6 +2016,7 @@ class CppCompilerSidebarProvider {
                             <button id="runInternal">内置终端运行</button>
                             <button id="runExternal">外部终端运行</button>
                             <button id="onlyCompile">仅编译</button>
+                            <button id="startDebug">GDB 调试</button>
                         </div>
                         <div class="checkbox-container">
                             <input type="checkbox" id="useConsoleInfo">
@@ -2480,7 +2487,7 @@ class CppCompilerSidebarProvider {
 
                     if (data.type === 'updateButtonStates') {
                         const enabled = data.enabled;
-                        const ids = ['runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
+                        const ids = ['runInternal', 'runExternal', 'onlyCompile', 'startDebug', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
                         ids.forEach(function(id) {
                             const el = document.getElementById(id);
                             if(el) el.disabled = !enabled;
@@ -2552,7 +2559,7 @@ class CppCompilerSidebarProvider {
                     });
                 });
 
-                ['runInternal', 'runExternal', 'onlyCompile'].forEach(function(id) {
+                ['runInternal', 'runExternal', 'onlyCompile', 'startDebug'].forEach(function(id) {
                     document.getElementById(id).addEventListener('click', function() {
                         if(filePath) vscode.postMessage({ type: id, filePath: filePath });
                     });
@@ -2636,6 +2643,35 @@ class CppCompilerSidebarProvider {
     }
 }
 
+// Versioned, optional in-process API for the companion GDB extension. It uses
+// separate temporary builds, not the ordinary compiler's output or hash cache.
+async function compileForDebug(filePath) {
+    if (!vscode.workspace.isTrusted) throw new Error('请先信任工作区，再编译调试');
+    if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !/\.(?:cpp|cc|cxx|c\+\+)$/i.test(filePath)) throw new Error('联动调试仅支持本地 C++ 源文件');
+    const config = fileConfigs[filePath] || parseFileHeaderConfig(filePath);
+    if (!config) throw new Error('无法读取 C++ 源文件配置');
+    const { flags, linkerFlags, ignored } = debugFlags(config.compileOptions, config.useStaticLinking);
+    const result = await compileSourceFile(filePath, {
+        compilerPath: getConfig('compilerPath') || 'g++',
+        compileFlags: flags, linkFlags: linkerFlags, vectorHelpers: true, autoCleanup: true
+    });
+    result.integration = { provider: 'dream-cpp-compiler', ignoredFlags: ignored };
+    return result;
+}
+
+async function startCompanionDebug(filePath) {
+    if (!vscode.workspace.isTrusted) { vscode.window.showWarningMessage('请先信任工作区，再启动调试'); return; }
+    if (!vscode.extensions.getExtension('wudream.dream-cpp-debuger')) {
+        vscode.window.showInformationMessage('请先安装并启用 Dream C++ Debugger。'); return;
+    }
+    if (filePath) {
+        if (!path.isAbsolute(filePath) || !/\.(?:cpp|cc|cxx|c\+\+)$/i.test(filePath)) { vscode.window.showWarningMessage('请选择本地 C++ 源文件'); return; }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+        await vscode.window.showTextDocument(doc, { preview: false });
+    }
+    await vscode.commands.executeCommand('dream-cpp-debug.startDebug');
+}
+
 // 激活扩展
 function activate(context) {
     // 清理超出限制的临时代码目录
@@ -2677,6 +2713,8 @@ function activate(context) {
         }
     );
 
+    const debugDisposable = vscode.commands.registerCommand('dream-cpp-compiler.startDebug', () => startCompanionDebug());
+
     // 创建状态栏按钮
     statusBarInternal = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     statusBarInternal.text = '$(run) 内置终端运行';
@@ -2704,12 +2742,14 @@ function activate(context) {
         internalDisposable,
         externalDisposable,
         cppCompile,
+        debugDisposable,
         statusBarInternal,
         statusBarExternal,
         statusBarCompile,
         compileStatus,
         OpenTerminalDisposable
     );
+    return { apiVersion: 1, compileForDebug };
 }
 
 function deactivate() { }

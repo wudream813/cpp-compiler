@@ -1,3 +1,8 @@
+## 7.3.0
+
+- 增加与 Dream C++ Debugger 的可选调试构建接口和侧栏入口。
+- 调试构建使用独立产物与 `-g -O0`，不修改普通运行的构建缓存。
+
 # dream-cpp-compiler v7.2.1
 > 修复了一处临时文件运行的 bug
 # dream-cpp-compiler v7.2.0
