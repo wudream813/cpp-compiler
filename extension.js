@@ -1053,7 +1053,9 @@ class CppCompilerSidebarProvider {
 
         sidebarPanel.webview.postMessage({
             type: 'updateButtonStates',
-            enabled: enabled
+            enabled: enabled,
+            debuggerAvailable: !!vscode.extensions.getExtension('wudream.dream-cpp-debuger'),
+            debugEnabled: !!(document && document.languageId === 'cpp' && document.uri.scheme === 'file' && /\.(?:cpp|cc|cxx|c\+\+)$/i.test(document.uri.fsPath))
         });
     }
 
@@ -1101,6 +1103,11 @@ class CppCompilerSidebarProvider {
         // 监听来自webview的消息
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
+                case 'webviewReady': {
+                    this.updateButtonStates();
+                    this.updateWebviewContent();
+                    break;
+                }
                 case 'startDebug': {
                     await startCompanionDebug(data.filePath);
                     break;
@@ -1769,6 +1776,8 @@ class CppCompilerSidebarProvider {
                     box-shadow: 0 10px 22px rgba(0,0,0,.22);
                 }
 
+                button[hidden] { display: none !important; }
+
                 button:hover:not(:disabled){
                     transform: translateY(-2px);
                     border-color: color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent);
@@ -2016,7 +2025,7 @@ class CppCompilerSidebarProvider {
                             <button id="runInternal">内置终端运行</button>
                             <button id="runExternal">外部终端运行</button>
                             <button id="onlyCompile">仅编译</button>
-                            <button id="startDebug">GDB 调试</button>
+                            <button id="startDebug" hidden>GDB 调试</button>
                         </div>
                         <div class="checkbox-container">
                             <input type="checkbox" id="useConsoleInfo">
@@ -2487,11 +2496,15 @@ class CppCompilerSidebarProvider {
 
                     if (data.type === 'updateButtonStates') {
                         const enabled = data.enabled;
-                        const ids = ['runInternal', 'runExternal', 'onlyCompile', 'startDebug', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
+                        const ids = ['runInternal', 'runExternal', 'onlyCompile', 'useFileRedirect', 'useUnFileRedirect', 'staticLinking'];
                         ids.forEach(function(id) {
                             const el = document.getElementById(id);
                             if(el) el.disabled = !enabled;
                         });
+
+                        const debugButton = document.getElementById('startDebug');
+                        debugButton.hidden = !data.debuggerAvailable;
+                        debugButton.disabled = !data.debuggerAvailable || !data.debugEnabled;
 
                         const inputIds = Object.keys(VARIABLE_CONFIG.inputRules).concat(['compileOptions', 'WorkDir']);
                         inputIds.forEach(function(id) {
@@ -2622,6 +2635,8 @@ class CppCompilerSidebarProvider {
                     });
                 }
 
+                vscode.postMessage({ type: 'webviewReady' });
+
                 // 绑定按钮事件
                 const btnSaveSettings = document.getElementById('saveSettings');
                 if (btnSaveSettings) {
@@ -2679,6 +2694,13 @@ function activate(context) {
 
     // 注册侧边栏提供者
     const sidebarProvider = new CppCompilerSidebarProvider(context);
+    const updateDebuggerAvailability = () => {
+        const available = !!vscode.extensions.getExtension('wudream.dream-cpp-debuger');
+        void vscode.commands.executeCommand('setContext', 'dreamCppCompiler.debuggerAvailable', available);
+        sidebarProvider.updateButtonStates();
+    };
+    context.subscriptions.push(vscode.extensions.onDidChange(updateDebuggerAvailability));
+    updateDebuggerAvailability();
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             'cppCompilerSidebar',
