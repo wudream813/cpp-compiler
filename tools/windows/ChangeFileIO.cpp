@@ -2,9 +2,36 @@
 #include <cstdio>
 #include <ctime>
 
+#include <cctype>
+#include <string>
+#include <algorithm>
+
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
 using namespace std;
 
-// 递归删除目录
+// 莨删目录
 void removeDir(const char* path) {
     WIN32_FIND_DATAA ffd;
     char search[MAX_PATH];
@@ -25,12 +52,12 @@ void removeDir(const char* path) {
     RemoveDirectoryA(path);
 }
 
-// 使用 Windows API 拷贝文件
+// 使 Windows API 募
 bool copyFileWin(const char* src, const char* dst) {
     return CopyFileA(src, dst, FALSE) != 0;
 }
 
-// 创建临时目录
+// 时目录
 bool createTempSubDir(char* tempDir, size_t size) {
     char base[MAX_PATH];
     if (!GetTempPathA(MAX_PATH, base)) return false;
@@ -40,7 +67,34 @@ bool createTempSubDir(char* tempDir, size_t size) {
     return CreateDirectoryA(tempDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-// 使用 CreateProcess 执行命令
+
+bool writeStdinToFile(const char* filePath) {
+    HANDLE hFile = CreateFileA(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return false;
+    char buffer[4096];
+    DWORD readBytes, writtenBytes;
+    HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+    while (ReadFile(hStdIn, buffer, sizeof(buffer), &readBytes, NULL) && readBytes > 0) {
+        WriteFile(hFile, buffer, readBytes, &writtenBytes, NULL);
+    }
+    CloseHandle(hFile);
+    return true;
+}
+
+bool dumpFileToStdout(const char* filePath) {
+    HANDLE hFile = CreateFileA(filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return false;
+    char buffer[4096];
+    DWORD readBytes, written;
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    while (ReadFile(hFile, buffer, sizeof(buffer), &readBytes, NULL) && readBytes > 0) {
+        WriteFile(hOut, buffer, readBytes, &written, NULL);
+    }
+    CloseHandle(hFile);
+    return true;
+}
+
+// 使 CreateProcess 执
 int runExe(const char* exePath, const char* workingDir) {
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
@@ -58,7 +112,7 @@ int runExe(const char* exePath, const char* workingDir) {
 
 int main(int argc, char* argv[]) {
     if (argc != 6) {
-        printf("用法：ChangeFileIO.exe <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
+        printf("梅ChangeFileIO.exe <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
         return -1;
     }
 
@@ -68,31 +122,48 @@ int main(int argc, char* argv[]) {
     const char* willInput = argv[4];
     const char* willOutput = argv[5];
 
-    char tempDir[MAX_PATH], tempInput[MAX_PATH], tempOutput[MAX_PATH], tempExe[MAX_PATH];
-
-    if (!createTempSubDir(tempDir, sizeof(tempDir))) {
-        printf("无法创建临时目录\n");
-        return -1;
+    bool progInputIsCon = isConsoleFile(programInput);
+    bool progOutputIsCon = isConsoleFile(programOutput);
+    bool willInputIsCon = isConsoleFile(willInput);
+    bool willOutputIsCon = isConsoleFile(willOutput);
+    if (willInputIsCon && willOutputIsCon) {
+        return runExe(commandArg, nullptr);
     }
-
-    snprintf(tempInput, MAX_PATH, "%s\\%s", tempDir, willInput);
-    snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, willOutput);
-
-    // 将 WillinputFile 复制到临时目录 programInput
-    if (!copyFileWin(programInput, tempInput)) {
-        printf("无法复制输入文件到临时目录\n");
-        removeDir(tempDir);
-        return -1;
+    char tempDir[MAX_PATH], tempInput[MAX_PATH] = {0}, tempOutput[MAX_PATH] = {0}, tempExe[MAX_PATH];
+    bool needTemp = !willInputIsCon || !willOutputIsCon;
+    if (needTemp) {
+        if (!createTempSubDir(tempDir, sizeof(tempDir))) {
+            printf("鏃犳硶鍒涘缓涓存椂鐩綍\n");
+            return -1;
+        }
+        if (!willInputIsCon) snprintf(tempInput, MAX_PATH, "%s\%s", tempDir, willInput);
+        if (!willOutputIsCon) snprintf(tempOutput, MAX_PATH, "%s\%s", tempDir, willOutput);
+    } else {
+        tempDir[0] = 0;
     }
-
-    // 执行临时 exe 并收集信息
-    int ret = runExe(commandArg, tempDir);
-
-    // 将输出文件复制回 WilloutputFile
-    copyFileWin(tempOutput, programOutput);
-
-    // 删除临时目录
-    removeDir(tempDir);
-
+    if (!willInputIsCon) {
+        if (progInputIsCon) {
+            if (!writeStdinToFile(tempInput)) {
+                printf("鏃犳硶浠庢帶鍒跺彴璇诲彇杈撳叆鍒颁复鏃剁洰褰昞n");
+                if (needTemp) removeDir(tempDir);
+                return -1;
+            }
+        } else {
+            if (!copyFileWin(programInput, tempInput)) {
+                printf("鏃犳硶澶嶅埗杈撳叆鏂囦欢鍒颁复鏃剁洰褰昞n");
+                if (needTemp) removeDir(tempDir);
+                return -1;
+            }
+        }
+    }
+    int ret = runExe(commandArg, needTemp ? tempDir : nullptr);
+    if (!willOutputIsCon) {
+        if (progOutputIsCon) {
+            dumpFileToStdout(tempOutput);
+        } else {
+            copyFileWin(tempOutput, programOutput);
+        }
+    }
+    if (needTemp) removeDir(tempDir);
     return ret;
 }

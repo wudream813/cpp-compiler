@@ -50,6 +50,32 @@ function shellEscapePosix(value) {
     return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
+// 判断路径是否指向控制台设备（CON / CONIN$ / NUL / /dev/tty 等）。
+// 反文件读写里如果输入或输出文件是 CON，不应该当成普通文件去创建临时文件；
+// 支持“控制台读入、文件输出”或“文件读入、控制台输出”的混合模式。
+function isConsoleDevicePath(filePath) {
+    if (!filePath) return false;
+    const p = String(filePath).trim();
+    if (!p) return false;
+    const lower = p.toLowerCase();
+    // 裸设备名
+    if (lower === 'con' || lower === 'conin$' || lower === 'conout$' || lower === 'nul' || lower === 'aux' || lower === 'prn') return true;
+    // POSIX 控制台设备
+    if (lower === '/dev/stdin' || lower === '/dev/stdout' || lower === '/dev/stderr' || lower === '/dev/tty' || lower === '/dev/console') return true;
+    if (lower.startsWith('/dev/pts/')) return true;
+    // 按 basename 判断：保留设备名在 Windows 上即使带路径或带扩展名也属于设备（con.txt 仍是保留名），兼容 / 与 \ 两种分隔符
+    const base = p.split(/[\/\\]/).pop() || path.basename(p);
+    const ext = path.extname(base);
+    const nameNoExt = ext ? base.slice(0, -ext.length) : base;
+    const nameLower = nameNoExt.toLowerCase();
+    const reserved = new Set(['con','conin$','conout$','nul','aux','prn','com1','com2','com3','com4','com5','com6','com7','com8','com9','lpt1','lpt2','lpt3','lpt4','lpt5','lpt6','lpt7','lpt8','lpt9']);
+    if (reserved.has(nameLower)) return true;
+    // basename 本身是 CON 等但带扩展名的情况已通过 nameNoExt 覆盖；再兜底判断 base 本身
+    const baseLower = base.toLowerCase();
+    if (reserved.has(baseLower)) return true;
+    return false;
+}
+
 // 去掉扩展名后的文件名，供 <baseName> / <base> 使用（支持 .cc/.cxx/.c++/.CPP 等）
 function getBaseName(filePath) {
     const name = path.basename(String(filePath || ''));
@@ -1035,6 +1061,18 @@ async function runProgram(filePath, terminalType) {
 // ---------------- Windows 构建命令 ----------------
 async function buildRunCommandWin(baseDir, exeName, opt) {
     if (opt.useFileRedirect && opt.useUnFileRedirect) {
+        // 若反侧的输入输出都是 CON，直接跑程序即可；helper 内部也会处理混合的 CON
+        if (isConsoleDevicePath(opt.unFileInputFile) && isConsoleDevicePath(opt.unFileOutputFile)) {
+            if (opt.UseConsoleInfo) {
+                const ModuleName = 'ConsoleInfo';
+                const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+                const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
+                if(!result) return null;
+                return `cmd /c ""${executablePath}" "${exeName}""`;
+            } else {
+                return `cmd /c "${exeName}"`;
+            }
+        }
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
@@ -1053,7 +1091,20 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             return `cmd /c ""${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}""`;
         }
     } else if (opt.useFileRedirect) {
+        const inputIsCon = isConsoleDevicePath(opt.inputFile);
+        const outputIsCon = isConsoleDevicePath(opt.outputFile);
         if (opt.UseConsoleInfo) {
+            // ConsoleInfoFileIO 暂不支持单侧 CON 的部分重定向，回退到直接运行+shell 透传
+            if (inputIsCon || outputIsCon) {
+                let cmd = `cmd /c "${exeName}"`;
+                if (!inputIsCon && opt.inputFile) cmd = `cmd /c ""${exeName}" < "${opt.inputFile}""`;
+                if (!outputIsCon && opt.outputFile) {
+                    if (cmd.includes('<')) cmd += ` > "${opt.outputFile}"`;
+                    else cmd = `cmd /c ""${exeName}" > "${opt.outputFile}""`;
+                }
+                if (inputIsCon && outputIsCon) cmd = `cmd /c "${exeName}"`;
+                return cmd;
+            }
             const ModuleName = 'ConsoleInfoFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
             const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
@@ -1062,9 +1113,25 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             }
             return `cmd /c ""${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}""`;
         } else {
+            if (inputIsCon && outputIsCon) return `cmd /c "${exeName}"`;
+            if (inputIsCon) return `cmd /c ""${exeName}" > "${opt.outputFile}""`;
+            if (outputIsCon) return `cmd /c ""${exeName}" < "${opt.inputFile}""`;
             return `cmd /c ""${exeName}" < "${opt.inputFile}" > "${opt.outputFile}""`;
         }
     } else if (opt.useUnFileRedirect) {
+        const inIsCon = isConsoleDevicePath(opt.unFileInputFile);
+        const outIsCon = isConsoleDevicePath(opt.unFileOutputFile);
+        if (inIsCon && outIsCon) {
+            if (opt.UseConsoleInfo) {
+                const ModuleName = 'ConsoleInfo';
+                const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
+                const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
+                if(!result) return null;
+                return `cmd /c ""${executablePath}" "${exeName}""`;
+            } else {
+                return `cmd /c "${exeName}"`;
+            }
+        }
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoUnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
@@ -1097,6 +1164,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
     }
 }
 
+
 async function buildTerminalCommandWin(exePath, cdCommand, runCommand, moreCommand) {
     if(moreCommand)return `start "${exePath}" cmd /c "${cdCommand} & ${runCommand} & echo. & ${moreCommand} & pause"`;
     return `start "${exePath}" cmd /c "${cdCommand} & ${runCommand} & echo. & pause"`;
@@ -1105,6 +1173,17 @@ async function buildTerminalCommandWin(exePath, cdCommand, runCommand, moreComma
 // ---------------- Linux 构建命令 ----------------
 async function buildRunCommandLinux(baseDir, exeName, opt) {
     if (opt.useFileRedirect && opt.useUnFileRedirect) {
+        if (isConsoleDevicePath(opt.unFileInputFile) && isConsoleDevicePath(opt.unFileOutputFile)) {
+            if (opt.UseConsoleInfo) {
+                const ModuleName = 'ConsoleInfo';
+                const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+                const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath);
+                if(!result) return null;
+                return `"${executablePath}" "${exeName}"; echo`;
+            } else {
+                return `"${exeName}"; echo`;
+            }
+        }
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
@@ -1123,7 +1202,20 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         }
     } else if (opt.useFileRedirect) {
+        const inputIsCon = isConsoleDevicePath(opt.inputFile);
+        const outputIsCon = isConsoleDevicePath(opt.outputFile);
         if (opt.UseConsoleInfo) {
+            if (inputIsCon || outputIsCon) {
+                // ConsoleInfoFileIO 不支持部分 CON，直接用 shell 透传
+                let cmd = `"${exeName}"`;
+                if (!inputIsCon && opt.inputFile) cmd = `"${exeName}" < "${opt.inputFile}"`;
+                if (!outputIsCon && opt.outputFile) {
+                    if (cmd.includes('<')) cmd += ` > "${opt.outputFile}"`;
+                    else cmd = `"${exeName}" > "${opt.outputFile}"`;
+                }
+                if (inputIsCon && outputIsCon) cmd = `"${exeName}"`;
+                return `${cmd}; echo`;
+            }
             const ModuleName = 'ConsoleInfoFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
@@ -1132,9 +1224,25 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             }
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"; echo`;
         } else {
+            if (inputIsCon && outputIsCon) return `"${exeName}"; echo`;
+            if (inputIsCon) return `"${exeName}" > "${opt.outputFile}"; echo`;
+            if (outputIsCon) return `"${exeName}" < "${opt.inputFile}"; echo`;
             return `"${exeName}" < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
         }
     } else if (opt.useUnFileRedirect) {
+        const inIsCon = isConsoleDevicePath(opt.unFileInputFile);
+        const outIsCon = isConsoleDevicePath(opt.unFileOutputFile);
+        if (inIsCon && outIsCon) {
+            if (opt.UseConsoleInfo) {
+                const ModuleName = 'ConsoleInfo';
+                const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+                const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+                if(!result) return null;
+                return `"${executablePath}" "${exeName}"; echo`;
+            } else {
+                return `"${exeName}"; echo`;
+            }
+        }
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoUnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
@@ -1167,6 +1275,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
     }
 }
 
+
 async function buildTerminalCommandLinux(executablePath, cdCommand, runCommand) {
     // cdCommand / runCommand 里已经用双引号包了路径，这里不能再套一层双引号：
     // 外层 sh 会在第一个内层引号处截断，路径含空格时程序根本不会启动。
@@ -1178,6 +1287,17 @@ async function buildTerminalCommandLinux(executablePath, cdCommand, runCommand) 
 
 async function buildRunCommandMacOS(baseDir, exeName, opt) {
     if (opt.useFileRedirect && opt.useUnFileRedirect) {
+        if (isConsoleDevicePath(opt.unFileInputFile) && isConsoleDevicePath(opt.unFileOutputFile)) {
+            if (opt.UseConsoleInfo) {
+                const ModuleName = 'ConsoleInfo';
+                const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+                const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath);
+                if(!result) return null;
+                return `"${executablePath}" "${exeName}"; echo`;
+            } else {
+                return `"${exeName}"; echo`;
+            }
+        }
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
@@ -1193,7 +1313,19 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         }
     } else if (opt.useFileRedirect) {
+        const inputIsCon = isConsoleDevicePath(opt.inputFile);
+        const outputIsCon = isConsoleDevicePath(opt.outputFile);
         if (opt.UseConsoleInfo) {
+            if (inputIsCon || outputIsCon) {
+                let cmd = `"${exeName}"`;
+                if (!inputIsCon && opt.inputFile) cmd = `"${exeName}" < "${opt.inputFile}"`;
+                if (!outputIsCon && opt.outputFile) {
+                    if (cmd.includes('<')) cmd += ` > "${opt.outputFile}"`;
+                    else cmd = `"${exeName}" > "${opt.outputFile}"`;
+                }
+                if (inputIsCon && outputIsCon) cmd = `"${exeName}"`;
+                return `${cmd}; echo`;
+            }
             const ModuleName = 'ConsoleInfoFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
@@ -1201,9 +1333,25 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"; echo`;
         } else {
             // macOS 也是类 Unix 系统，标准重定向符号与 Linux 一致
+            if (inputIsCon && outputIsCon) return `"${exeName}"; echo`;
+            if (inputIsCon) return `"${exeName}" > "${opt.outputFile}"; echo`;
+            if (outputIsCon) return `"${exeName}" < "${opt.inputFile}"; echo`;
             return `"${exeName}" < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
         }
     } else if (opt.useUnFileRedirect) {
+        const inIsCon = isConsoleDevicePath(opt.unFileInputFile);
+        const outIsCon = isConsoleDevicePath(opt.unFileOutputFile);
+        if (inIsCon && outIsCon) {
+            if (opt.UseConsoleInfo) {
+                const ModuleName = 'ConsoleInfo';
+                const executablePath = path.join(getTempDir(), 'Module', ModuleName);
+                const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+                if(!result) return null;
+                return `"${executablePath}" "${exeName}"; echo`;
+            } else {
+                return `"${exeName}"; echo`;
+            }
+        }
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoUnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
@@ -1229,6 +1377,7 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
         }
     }
 }
+
 
 async function buildTerminalCommandMacOS(executablePath, cdCommand, runCommand) {
     let fullShellCmd = `${cdCommand}; ${runCommand};`;

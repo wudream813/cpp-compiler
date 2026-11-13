@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cctype>
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
@@ -9,6 +10,36 @@
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <limits.h>
+bool isConsoleFile(const char* p) {
+    if (!p || !*p) return false;
+    const char* s = p;
+    while (*s && (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n')) s++;
+    size_t len = strlen(s);
+    while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\t' || s[len-1] == '\r' || s[len-1] == '\n')) len--;
+    if (len == 0) return false;
+    char tmp[512];
+    if (len >= sizeof(tmp)) return false;
+    memcpy(tmp, s, len);
+    tmp[len] = 0;
+    for (size_t i=0;i<len;i++) tmp[i]=tolower((unsigned char)tmp[i]);
+    if (!strcmp(tmp,"con")||!strcmp(tmp,"conin$")||!strcmp(tmp,"conout$")||!strcmp(tmp,"nul")||!strcmp(tmp,"aux")||!strcmp(tmp,"prn")) return true;
+    if (!strcmp(tmp,"/dev/stdin")||!strcmp(tmp,"/dev/stdout")||!strcmp(tmp,"/dev/stderr")||!strcmp(tmp,"/dev/tty")||!strcmp(tmp,"/dev/console")) return true;
+    if (!strncmp(tmp,"/dev/pts/",9)) return true;
+    const char* base = strrchr(tmp,'/');
+    const char* b2 = strrchr(tmp,'\\');
+    if (b2 && (!base || b2>base)) base=b2;
+    if (base) base++; else base=tmp;
+    const char* dot=strrchr(base,'.');
+    size_t nlen=dot? (size_t)(dot-base): strlen(base);
+    char name[64];
+    if (nlen>=sizeof(name)) return false;
+    memcpy(name,base,nlen); name[nlen]=0;
+    const char* reserved[]={"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for(size_t i=0;i<sizeof(reserved)/sizeof(reserved[0]);i++) if(!strcmp(name,reserved[i])) return true;
+    if(!strcmp(base,"con")||!strcmp(base,"nul")||!strcmp(base,"aux")||!strcmp(base,"prn")) return true;
+    return false;
+}
+
 
 void removeDir(const char* path) {
     DIR* d = opendir(path);
@@ -93,6 +124,12 @@ int main(int argc, char* argv[]) {
         printf("用法：ConsoleInfoChangeFileIO <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
         return 0;
     }
+    bool progInputIsCon = isConsoleFile(argv[2]);
+    bool progOutputIsCon = isConsoleFile(argv[3]);
+    bool willInputIsCon = isConsoleFile(argv[4]);
+    bool willOutputIsCon = isConsoleFile(argv[5]);
+    if (willInputIsCon && willOutputIsCon) return runTargetExe(argv[1], nullptr);
+
     char tempDir[PATH_MAX], tempInput[PATH_MAX], tempOutput[PATH_MAX];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) {
         printf("无法创建临时目录\n");

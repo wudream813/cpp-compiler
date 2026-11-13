@@ -1,8 +1,39 @@
+#include <cctype>
 #include <Windows.h>
 #include <cstdio>
 #include <ctime>
+bool isConsoleFile(const char* p) {
+    if (!p || !*p) return false;
+    const char* s = p;
+    while (*s && (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n')) s++;
+    size_t len = strlen(s);
+    while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\t' || s[len-1] == '\r' || s[len-1] == '\n')) len--;
+    if (len == 0) return false;
+    char tmp[512];
+    if (len >= sizeof(tmp)) return false;
+    memcpy(tmp, s, len);
+    tmp[len] = 0;
+    for (size_t i=0;i<len;i++) tmp[i]=tolower((unsigned char)tmp[i]);
+    if (!strcmp(tmp,"con")||!strcmp(tmp,"conin$")||!strcmp(tmp,"conout$")||!strcmp(tmp,"nul")||!strcmp(tmp,"aux")||!strcmp(tmp,"prn")) return true;
+    if (!strcmp(tmp,"/dev/stdin")||!strcmp(tmp,"/dev/stdout")||!strcmp(tmp,"/dev/stderr")||!strcmp(tmp,"/dev/tty")||!strcmp(tmp,"/dev/console")) return true;
+    if (!strncmp(tmp,"/dev/pts/",9)) return true;
+    const char* base = strrchr(tmp,'/');
+    const char* b2 = strrchr(tmp,'\\');
+    if (b2 && (!base || b2>base)) base=b2;
+    if (base) base++; else base=tmp;
+    const char* dot=strrchr(base,'.');
+    size_t nlen=dot? (size_t)(dot-base): strlen(base);
+    char name[64];
+    if (nlen>=sizeof(name)) return false;
+    memcpy(name,base,nlen); name[nlen]=0;
+    const char* reserved[]={"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for(size_t i=0;i<sizeof(reserved)/sizeof(reserved[0]);i++) if(!strcmp(name,reserved[i])) return true;
+    if(!strcmp(base,"con")||!strcmp(base,"nul")||!strcmp(base,"aux")||!strcmp(base,"prn")) return true;
+    return false;
+}
 
-// ×Ô¶¨Òå PROCESS_MEMORY_COUNTERS ½á¹¹
+
+// Ô¶ PROCESS_MEMORY_COUNTERS á¹¹
 typedef struct _PROCESS_MEMORY_COUNTERS {
     DWORD cb;
     DWORD PageFaultCount;
@@ -16,10 +47,10 @@ typedef struct _PROCESS_MEMORY_COUNTERS {
     SIZE_T PeakPagefileUsage;
 } PROCESS_MEMORY_COUNTERS;
 
-// º¯ÊýÖ¸ÕëÀàÐÍ
+// Ö¸
 typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
 
-// ´´½¨ÁÙÊ±Ä¿Â¼
+// Ê±Ä¿Â¼
 bool createTempSubDir(char* tempDir, size_t size) {
     char base[MAX_PATH];
     if (!GetTempPathA(MAX_PATH, base)) return false;
@@ -29,7 +60,7 @@ bool createTempSubDir(char* tempDir, size_t size) {
     return CreateDirectoryA(tempDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-// µÝ¹éÉ¾³ýÄ¿Â¼
+// Ý¹É¾Ä¿Â¼
 void removeDir(const char* path) {
     WIN32_FIND_DATAA ffd;
     char search[MAX_PATH];
@@ -50,7 +81,7 @@ void removeDir(const char* path) {
     RemoveDirectoryA(path);
 }
 
-// ½« stdin Ð´ÈëÎÄ¼þ
+//  stdin Ð´Ä¼
 bool writeStdinToFile(const char* filePath) {
     HANDLE hFile = CreateFileA(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) return false;
@@ -66,7 +97,7 @@ bool writeStdinToFile(const char* filePath) {
     return true;
 }
 
-// Ö´ÐÐ exe ²¢ÊÕ¼¯ CPU/ÄÚ´æ/ÔËÐÐÊ±¼äÐÅÏ¢
+// Ö´ exe Õ¼ CPU/Ú´/Ê±Ï¢
 int runTargetExe(const char* exePath, const char* workingDir, const char* outputPath) {
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
@@ -85,7 +116,7 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 
     WaitForSingleObject(pi.hProcess, INFINITE);
 
-    // ÄÚ´æÐÅÏ¢
+    // Ú´Ï¢
     PROCESS_MEMORY_COUNTERS pmc = { sizeof(pmc) };
     HMODULE hPsapi = LoadLibraryA("Psapi.dll");
     if (hPsapi) {
@@ -98,7 +129,7 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
         FreeLibrary(hPsapi);
     }
 
-    // CPU Ê±¼ä
+    // CPU Ê±
     FILETIME creationTime, exitTime, kernelTime, userTime;
     GetProcessTimes(pi.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
 
@@ -120,7 +151,7 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 
     HANDLE hFile = CreateFileA(outputPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
-        printf("´íÎó£ºÎÞ·¨´ò¿ªÊä³öÎÄ¼þ");
+        printf("Þ·Ä¼");
     } else {
         char buffer[4096];
         DWORD readBytes;
@@ -133,14 +164,14 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
         CloseHandle(hFile);
     }
 
-    // Êä³öÐÔÄÜÐÅÏ¢
+    // Ï¢
     printf("\n-----------------------------------------------");
-    printf("\n×ÜÖ´ÐÐÊ±¼ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÄÚ´æÊ¹ÓÃ£º%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUÄÚºËÊ±¼ä£º%.3f Ãë", totalKernelTime / 1000000.0);
-    printf("\nCPUÓÃ»§Ê±¼ä£º%.3f Ãë", totalUserTime / 1000000.0);
-    printf("\n×ÜCPUÊ±¼ä£º%.3f Ãë", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\n³ÌÐò·µ»ØÖµ£º%ld (0x%lX)", returnValue, returnValue);
+    printf("\nÖ´Ê±ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nÚ´Ê¹Ã£%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
+    printf("\nCPUÚºÊ±ä£º%.3f ", totalKernelTime / 1000000.0);
+    printf("\nCPUÃ»Ê±ä£º%.3f ", totalUserTime / 1000000.0);
+    printf("\nCPUÊ±ä£º%.3f ", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\nò·µ»Öµ%ld (0x%lX)", returnValue, returnValue);
     printf("\n-----------------------------------------------");
 
     return returnValue;
@@ -148,16 +179,20 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        printf("ÓÃ·¨£ºConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
+        printf("Ã·ConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
+    bool inputIsCon = isConsoleFile(argv[2]);
+    bool outputIsCon = isConsoleFile(argv[3]);
+    if (inputIsCon && outputIsCon) return runTargetExe(argv[1], nullptr, nullptr);
+
 
     const char *inputFile = argv[2];
     const char *outputFile = argv[3];
 
     char tempDir[MAX_PATH];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) {
-        printf("ÎÞ·¨´´½¨ÁÙÊ±Ä¿Â¼\n");
+        printf("Þ·Ê±Ä¿Â¼\n");
         return -1;
     }
 
@@ -166,15 +201,15 @@ int main(int argc, char* argv[]) {
     snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, outputFile);
 
     if (!writeStdinToFile(tempInput)) {
-        printf("ÎÞ·¨Ð´ÈëÁÙÊ±ÊäÈëÎÄ¼þ\n");
+        printf("Þ·Ð´Ê±Ä¼\n");
         removeDir(tempDir);
         return -1;
     }
 
-    // Ö´ÐÐÃüÁî²¢ÊÕ¼¯ÐÅÏ¢
+    // Ö´î²¢Õ¼Ï¢
     int ret = runTargetExe(argv[1], tempDir, tempOutput);
 
-    // É¾³ýÁÙÊ±Ä¿Â¼
+    // É¾Ê±Ä¿Â¼
     removeDir(tempDir);
 
     return ret;

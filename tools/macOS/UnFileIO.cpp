@@ -11,6 +11,33 @@
 #include <sys/wait.h>
 #include <limits.h>
 
+#include <cctype>
+#include <string>
+#include <algorithm>
+
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
 #ifndef MAX_PATH
 #define MAX_PATH PATH_MAX
 #endif
@@ -79,14 +106,20 @@ int main(int argc, char* argv[]) {
         printf("用法：UnFileIO <command> <inputFile> <outputFile>\n");
         return -1;
     }
+    bool inputIsCon = isConsoleFile(argv[2]);
+    bool outputIsCon = isConsoleFile(argv[3]);
+    if (inputIsCon && outputIsCon) {
+        return runExe(argv[1], nullptr);
+    }
+
 
     char tempDir[MAX_PATH], tempInput[MAX_PATH], tempOutput[MAX_PATH];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) return -1;
 
-    snprintf(tempInput, MAX_PATH, "%s/%s", tempDir, argv[2]);
-    snprintf(tempOutput, MAX_PATH, "%s/%s", tempDir, argv[3]);
+    if (!inputIsCon) snprintf(tempInput, MAX_PATH, "%s/%s", tempDir, argv[2]);
+    if (!outputIsCon) snprintf(tempOutput, MAX_PATH, "%s/%s", tempDir, argv[3]);
 
-    if (!writeStdinToFile(tempInput)) {
+    if (!inputIsCon && !writeStdinToFile(tempInput)) {
         removeDir(tempDir);
         return -1;
     }

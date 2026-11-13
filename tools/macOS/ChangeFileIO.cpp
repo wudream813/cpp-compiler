@@ -12,6 +12,33 @@
 #include <sys/wait.h>
 #include <limits.h>
 
+#include <cctype>
+#include <string>
+#include <algorithm>
+
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
 #ifndef MAX_PATH
 #define MAX_PATH PATH_MAX
 #endif
@@ -81,6 +108,31 @@ bool createTempSubDir(char* tempDir, size_t size) {
     return mkdir(tempDir, 0755) == 0 || errno == EEXIST;
 }
 
+
+bool writeStdinToFile(const char* filePath) {
+    int fd = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) return false;
+    char buffer[4096];
+    ssize_t bytes;
+    while ((bytes = read(STDIN_FILENO, buffer, sizeof(buffer))) > 0) {
+        if (write(fd, buffer, bytes) != bytes) { close(fd); return false; }
+    }
+    close(fd);
+    return true;
+}
+
+bool dumpFileToStdout(const char* filePath) {
+    int fd = open(filePath, O_RDONLY);
+    if (fd < 0) return false;
+    char buffer[4096];
+    ssize_t bytes;
+    while ((bytes = read(fd, buffer, sizeof(buffer))) > 0) {
+        if (write(STDOUT_FILENO, buffer, bytes) != bytes) { close(fd); return false; }
+    }
+    close(fd);
+    return true;
+}
+
 // 执行命令
 int runExe(const char* exePath, const char* workingDir) {
     pid_t pid = fork();
@@ -108,6 +160,14 @@ int main(int argc, char* argv[]) {
         printf("用法：ChangeFileIO <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
         return -1;
     }
+    bool progInputIsCon = isConsoleFile(argv[2]);
+    bool progOutputIsCon = isConsoleFile(argv[3]);
+    bool willInputIsCon = isConsoleFile(argv[4]);
+    bool willOutputIsCon = isConsoleFile(argv[5]);
+    if (willInputIsCon && willOutputIsCon) {
+        return runExe(argv[1], nullptr);
+    }
+
 
     const char* commandArg = argv[1];
     const char* programInput = argv[2];

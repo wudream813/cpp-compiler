@@ -9,6 +9,33 @@
 #include <sys/wait.h>
 #include <limits.h>
 
+#include <cctype>
+#include <string>
+#include <algorithm>
+
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
 void removeDir(const char* path) {
     DIR* d = opendir(path);
     if (d) {
@@ -66,31 +93,40 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    char tempDir[PATH_MAX], tempInput[PATH_MAX], tempOutput[PATH_MAX];
-    if (!createTempSubDir(tempDir, sizeof(tempDir))) return -1;
-
-    snprintf(tempInput, PATH_MAX, "%s/%s", tempDir, argv[2]);
-    snprintf(tempOutput, PATH_MAX, "%s/%s", tempDir, argv[3]);
-
-    if (!writeStdinToFile(tempInput)) {
-        removeDir(tempDir);
-        return -1;
+    bool inputIsCon = isConsoleFile(argv[2]);
+    bool outputIsCon = isConsoleFile(argv[3]);
+    if (inputIsCon && outputIsCon) {
+        return runExe(argv[1], nullptr);
     }
-
-    int ret = runExe(argv[1], tempDir);
-
-    int fd = open(tempOutput, O_RDONLY);
-    if (fd < 0) {
-        printf("错误：无法打开输出文件");
+    char tempDir[PATH_MAX], tempInput[PATH_MAX] = {0}, tempOutput[PATH_MAX] = {0};
+    bool needTemp = !inputIsCon || !outputIsCon;
+    if (needTemp) {
+        if (!createTempSubDir(tempDir, sizeof(tempDir))) return -1;
+        if (!inputIsCon) snprintf(tempInput, PATH_MAX, "%s/%s", tempDir, argv[2]);
+        if (!outputIsCon) snprintf(tempOutput, PATH_MAX, "%s/%s", tempDir, argv[3]);
     } else {
-        char buffer[4096];
-        ssize_t bytes;
-        while ((bytes = read(fd, buffer, sizeof(buffer))) > 0) {
-            write(STDOUT_FILENO, buffer, bytes);
-        }
-        close(fd);
+        tempDir[0] = 0;
     }
-
-    removeDir(tempDir);
+    if (!inputIsCon) {
+        if (!writeStdinToFile(tempInput)) {
+            if (needTemp) removeDir(tempDir);
+            return -1;
+        }
+    }
+    int ret = runExe(argv[1], needTemp ? tempDir : nullptr);
+    if (!outputIsCon) {
+        int fd = open(tempOutput, O_RDONLY);
+        if (fd < 0) {
+            printf("错误：无法打开输出文件");
+        } else {
+            char buffer[4096];
+            ssize_t bytes;
+            while ((bytes = read(fd, buffer, sizeof(buffer))) > 0) {
+                write(STDOUT_FILENO, buffer, bytes);
+            }
+            close(fd);
+        }
+    }
+    if (needTemp) removeDir(tempDir);
     return ret;
 }

@@ -2,7 +2,34 @@
 #include <cstdio>
 #include <ctime>
 
-// ×Ô¶¨Òå PROCESS_MEMORY_COUNTERS ½á¹¹
+#include <cctype>
+#include <string>
+#include <algorithm>
+
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
+// Ô¶ PROCESS_MEMORY_COUNTERS á¹¹
 typedef struct _PROCESS_MEMORY_COUNTERS {
     DWORD cb;
     DWORD PageFaultCount;
@@ -16,10 +43,10 @@ typedef struct _PROCESS_MEMORY_COUNTERS {
     SIZE_T PeakPagefileUsage;
 } PROCESS_MEMORY_COUNTERS;
 
-// º¯ÊýÖ¸ÕëÀàÐÍ
+// Ö¸
 typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
 
-// ´´½¨ÁÙÊ±Ä¿Â¼
+// Ê±Ä¿Â¼
 bool createTempSubDir(char* tempDir, size_t size) {
     char base[MAX_PATH];
     if (!GetTempPathA(MAX_PATH, base)) return false;
@@ -29,7 +56,7 @@ bool createTempSubDir(char* tempDir, size_t size) {
     return CreateDirectoryA(tempDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-// µÝ¹éÉ¾³ýÄ¿Â¼
+// Ý¹É¾Ä¿Â¼
 void removeDir(const char* path) {
     WIN32_FIND_DATAA ffd;
     char search[MAX_PATH];
@@ -50,7 +77,7 @@ void removeDir(const char* path) {
     RemoveDirectoryA(path);
 }
 
-// ½« stdin Ð´ÈëÎÄ¼þ
+//  stdin Ð´Ä¼
 bool writeStdinToFile(const char* filePath) {
     HANDLE hFile = CreateFileA(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) return false;
@@ -66,7 +93,7 @@ bool writeStdinToFile(const char* filePath) {
     return true;
 }
 
-// Ê¹ÓÃ CreateProcess Ö´ÐÐÃüÁî
+// Ê¹ CreateProcess Ö´
 int runExe(const char* exePath, const char* workingDir) {
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
@@ -86,35 +113,41 @@ int runExe(const char* exePath, const char* workingDir) {
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        printf("ÓÃ·¨£ºConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
+        printf("Ã·ConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
+    bool inputIsCon = isConsoleFile(inputFile);
+    bool outputIsCon = isConsoleFile(outputFile);
+    if (inputIsCon && outputIsCon) {
+        return runExe(argv[1], nullptr);
+    }
+
 
     const char *inputFile = argv[2];
     const char *outputFile = argv[3];
 
     char tempDir[MAX_PATH];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) {
-        printf("ÎÞ·¨´´½¨ÁÙÊ±Ä¿Â¼\n");
+        printf("Þ·Ê±Ä¿Â¼\n");
         return -1;
     }
 
     char tempInput[MAX_PATH], tempOutput[MAX_PATH];
-    snprintf(tempInput, MAX_PATH, "%s\\%s", tempDir, inputFile);
-    snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, outputFile);
+    if (!inputIsCon) snprintf(tempInput, MAX_PATH, "%s\\%s", tempDir, inputFile);
+    if (!outputIsCon) snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, outputFile);
 
-    if (!writeStdinToFile(tempInput)) {
-        printf("ÎÞ·¨Ð´ÈëÁÙÊ±ÊäÈëÎÄ¼þ\n");
+    if (!inputIsCon && !writeStdinToFile(tempInput)) {
+        printf("Þ·Ð´Ê±Ä¼\n");
         removeDir(tempDir);
         return -1;
     }
 
-    // Ö´ÐÐÃüÁî
+    // Ö´
     int ret = runExe(argv[1], tempDir);
 
-    HANDLE hFile = CreateFileA(tempOutput, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (!outputIsCon) { HANDLE hFile = CreateFileA(tempOutput, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
-        printf("´íÎó£ºÎÞ·¨´ò¿ªÊä³öÎÄ¼þ");
+        printf("Þ·Ä¼");
     } else {
         char buffer[4096];
         DWORD readBytes;
@@ -126,7 +159,7 @@ int main(int argc, char* argv[]) {
 
         CloseHandle(hFile);
     }
-    // É¾³ýÁÙÊ±Ä¿Â¼
+    // É¾Ê±Ä¿Â¼
     removeDir(tempDir);
 
     return ret;

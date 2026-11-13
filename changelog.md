@@ -1,4 +1,11 @@
+## 7.4.3
+
+- 修复“反文件读写”不适用从 CON 读入 / 输出的文件读写的问题：`CON` / `CONIN$` / `NUL` / `/dev/tty` 等控制台设备名此前会被当成普通文件去创建临时文件，在 Windows 上会因保留名直接失败，混合模式（控制台读入而文件输出，或反之）也无法处理。现在 `extension.js` 新增 `isConsoleDevicePath` 检测，`UnFileIO` / `ChangeFileIO`（含 `ConsoleInfo*` 变体）在所有平台（`tools/linux` / `macOS` / `windows`）均支持：输入输出均为 CON 时直接运行；仅一侧为 CON 时只处理另一侧的文件（控制台读入而文件输出，或文件读入而控制台输出），避免把控制台设备当成普通文件 `rm -rf` 或 `CopyFile`。
+- 文件重定向（`ConsoleInfoFileIO` / shell `< >`）同样支持单侧 CON：输入或输出为 CON 时跳过该侧的重定向，控制台透传。
+- 新增 `tests/con-device-tests.js`（8 项），覆盖 CON 设备名大小写、带路径/带扩展名、`com1`/`lpt1` 等保留名及 POSIX `/dev/tty` 等。
+
 ## 7.4.2
+
 
 - 修复「保存设置」会改写源码的问题：文件头配置只解析注释行（`//`、`/* */` 及块注释续行），`printf("workdir: /tmp")` 这类普通语句不再被当成配置行就地替换；改写块注释配置时也不再吃掉行尾的 `*/`。
 - 修复取消「以临时文件进行编译运行」可能删除工程目录的问题：原逻辑在没有临时目录记录时会兜底使用 webview 传来的工作目录并 `rm -rf`；现在只删除位于扩展临时目录（`<tmp>/dream-cpp-compiler/tmpcode`）之下的目录，其余一律跳过。
