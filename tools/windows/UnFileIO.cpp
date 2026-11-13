@@ -29,6 +29,47 @@ bool isConsoleFile(const char* path) {
     return false;
 }
 
+bool shouldExcludeWin(const char* name, const char* exclude1, const char* exclude2, const char* exclude3, const char* exclude4) {
+    if (!name) return false;
+    const char* base = strrchr(name, '\\');
+    if (!base) base = strrchr(name, '/');
+    if (base) base++; else base = name;
+    const char* exs[] = {exclude1, exclude2, exclude3, exclude4};
+    for (int i=0;i<4;i++) if (exs[i] && exs[i][0]) {
+        const char* eb = strrchr(exs[i], '\\');
+        if (!eb) eb = strrchr(exs[i], '/');
+        if (eb) eb++; else eb = exs[i];
+        if (_stricmp(base, eb)==0 || _stricmp(name, exs[i])==0) return true;
+    }
+    return false;
+}
+
+void mirrorWorkDirWin(const char* workDir, const char* tempDir, const char* ex1, const char* ex2, const char* ex3, const char* ex4) {
+    if (!workDir || !*workDir) return;
+    DWORD attr = GetFileAttributesA(workDir);
+    if (attr == INVALID_FILE_ATTRIBUTES || !(attr & FILE_ATTRIBUTE_DIRECTORY)) return;
+    char search[MAX_PATH];
+    snprintf(search, sizeof(search), "%s\\*", workDir);
+    WIN32_FIND_DATAA ffd;
+    HANDLE hFind = FindFirstFileA(search, &ffd);
+    if (hFind == INVALID_HANDLE_VALUE) return;
+    do {
+        if (!strcmp(ffd.cFileName, ".") || !strcmp(ffd.cFileName, "..")) continue;
+        if (shouldExcludeWin(ffd.cFileName, ex1, ex2, ex3, ex4)) continue;
+        char src[MAX_PATH], dst[MAX_PATH];
+        snprintf(src, sizeof(src), "%s\\%s", workDir, ffd.cFileName);
+        snprintf(dst, sizeof(dst), "%s\\%s", tempDir, ffd.cFileName);
+        if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            CreateDirectoryA(dst, NULL);
+            mirrorWorkDirWin(src, dst, ex1, ex2, ex3, ex4);
+        } else {
+            CopyFileA(src, dst, FALSE);
+        }
+    } while (FindNextFileA(hFind, &ffd));
+    FindClose(hFind);
+}
+
+
 
 // Զ PROCESS_MEMORY_COUNTERS ṹ
 typedef struct _PROCESS_MEMORY_COUNTERS {
@@ -113,19 +154,19 @@ int runExe(const char* exePath, const char* workingDir) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
+    const char* workDir = "";
+    if (argc == 5) workDir = argv[4];
+    else if (argc != 4) {
         printf("÷ConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
+    const char *inputFile = argv[2];
+    const char *outputFile = argv[3];
     bool inputIsCon = isConsoleFile(inputFile);
     bool outputIsCon = isConsoleFile(outputFile);
     if (inputIsCon && outputIsCon) {
         return runExe(argv[1], nullptr);
     }
-
-
-    const char *inputFile = argv[2];
-    const char *outputFile = argv[3];
 
     char tempDir[MAX_PATH];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) {
@@ -136,6 +177,9 @@ int main(int argc, char* argv[]) {
     char tempInput[MAX_PATH], tempOutput[MAX_PATH];
     if (!inputIsCon) snprintf(tempInput, MAX_PATH, "%s\\%s", tempDir, inputFile);
     if (!outputIsCon) snprintf(tempOutput, MAX_PATH, "%s\\%s", tempDir, outputFile);
+    if (workDir && *workDir) {
+        mirrorWorkDirWin(workDir, tempDir, argv[2], argv[3], nullptr, nullptr);
+    }
 
     if (!inputIsCon && !writeStdinToFile(tempInput)) {
         printf("޷дʱļ\n");

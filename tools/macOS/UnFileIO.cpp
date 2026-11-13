@@ -37,6 +37,77 @@ bool isConsoleFile(const char* path) {
     return false;
 }
 
+bool shouldExclude(const char* name, const char* exclude1, const char* exclude2, const char* exclude3, const char* exclude4) {
+    if (!name) return false;
+    const char* base = strrchr(name, '/');
+    if (base) base++; else base = name;
+    const char* b2 = strrchr(name, '\\');
+    if (b2 && (!base || b2 > base)) base = b2 + 1;
+    const char* exs[] = {exclude1, exclude2, exclude3, exclude4};
+    for (int i=0;i<4;i++) if (exs[i] && exs[i][0]) {
+        const char* eb = strrchr(exs[i], '/');
+        if (eb) eb++; else eb = exs[i];
+        const char* eb2 = strrchr(exs[i], '\\');
+        if (eb2 && (!eb || eb2 > eb)) eb = eb2 + 1;
+        if (strcmp(base, eb)==0 || strcmp(name, exs[i])==0) return true;
+    }
+    return false;
+}
+
+void copyFileContent(const char* src, const char* dst) {
+    int in = open(src, O_RDONLY);
+    if (in < 0) return;
+    int out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (out < 0) { close(in); return; }
+    char buf[8192];
+    ssize_t n;
+    while ((n = read(in, buf, sizeof(buf))) > 0) write(out, buf, n);
+    close(in); close(out);
+}
+
+void mirrorWorkDirRecursive(const char* workDir, const char* tempDir, const char* ex1, const char* ex2, const char* ex3, const char* ex4) {
+    DIR* d = opendir(workDir);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        if (shouldExclude(e->d_name, ex1, ex2, ex3, ex4)) continue;
+        char src[PATH_MAX], dst[PATH_MAX];
+        snprintf(src, sizeof(src), "%s/%s", workDir, e->d_name);
+        snprintf(dst, sizeof(dst), "%s/%s", tempDir, e->d_name);
+        struct stat st;
+        if (lstat(src, &st) != 0) continue;
+        if (S_ISLNK(st.st_mode)) {
+            char linkTarget[PATH_MAX];
+            ssize_t len = readlink(src, linkTarget, sizeof(linkTarget)-1);
+            if (len > 0) {
+                linkTarget[len]=0;
+                symlink(linkTarget, dst);
+            }
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            mkdir(dst, 0755);
+            mirrorWorkDirRecursive(src, dst, ex1, ex2, ex3, ex4);
+        } else if (S_ISREG(st.st_mode)) {
+            copyFileContent(src, dst);
+        }
+    }
+    closedir(d);
+}
+
+void mirrorWorkDir(const char* workDir, const char* tempDir, const char* ex1, const char* ex2, const char* ex3, const char* ex4) {
+    if (!workDir || !*workDir) return;
+    struct stat st;
+    if (stat(workDir, &st)!=0 || !S_ISDIR(st.st_mode)) return;
+    char realWork[PATH_MAX], realTemp[PATH_MAX];
+    if (realpath(workDir, realWork) && realpath(tempDir, realTemp)) {
+        if (strncmp(realWork, realTemp, strlen(realTemp))==0 || strncmp(realTemp, realWork, strlen(realWork))==0) return;
+    }
+    mirrorWorkDirRecursive(workDir, tempDir, ex1, ex2, ex3, ex4);
+}
+
+
 
 #ifndef MAX_PATH
 #define MAX_PATH PATH_MAX
@@ -103,7 +174,9 @@ int runExe(const char* exePath, const char* workingDir) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
+    const char* workDir = "";
+    if (argc == 5) workDir = argv[4];
+    else if (argc != 4) {
         printf("用法：UnFileIO <command> <inputFile> <outputFile>\n");
         return -1;
     }
@@ -119,6 +192,9 @@ int main(int argc, char* argv[]) {
 
     if (!inputIsCon) snprintf(tempInput, MAX_PATH, "%s/%s", tempDir, argv[2]);
     if (!outputIsCon) snprintf(tempOutput, MAX_PATH, "%s/%s", tempDir, argv[3]);
+    if (workDir && *workDir) {
+        mirrorWorkDir(workDir, tempDir, argv[2], argv[3], nullptr, nullptr);
+    }
 
     if (!inputIsCon && !writeStdinToFile(tempInput)) {
         removeDir(tempDir);

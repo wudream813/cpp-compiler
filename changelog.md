@@ -1,3 +1,8 @@
+## 7.4.5
+
+- 修复“反文件读写 + 指定目录运行”失效：`runProgram` 在外层 `cd effectiveWorkdir` 后再 `UnFileIO`，但 `UnFileIO`/`ChangeFileIO` 内部又 `chdir(tempDir)`/`CreateProcess(workingDir=tempDir)`，导致 `fopen("data/a.txt")` 等相对路径解析到 `/tmp/...` 而非 `WorkDir`；现 `extension.js` 的 `buildRunCommand*` 透传 `workDir: effectiveWorkdir` 至 helper 第 6/5 参数，`tools/{linux,macOS,windows}/{UnFileIO,ChangeFileIO,ConsoleInfo*}.cpp` 解析可选 `workDir` 并在 `needTemp` 时 `mirrorWorkDir(Win)` 将 `WorkDir` 资源递归镜像到 `tempDir`（`lstat` + `S_ISLNK` 跳链接、`pid+rand` 防并发、`isConsoleFile` CON 直通保留），`WorkDir/data/a.txt` 现可被 `fopen` 正常读取。
+- 顺带修复 `tools/windows/UnFileIO.cpp` 预存的 `isConsoleFile(inputFile)` 未定义变量回归，以及 `windows/ConsoleInfoChangeFileIO.cpp` 等遗漏的 `mirrorWorkDirWin` 调用。
+
 ## 7.4.4
 
 - 修复剩余 shell 注入面：`CompileModule`/`OnlyCompile` 由 `exec(shell)` 改为 `spawn` 数组（`parseShellTokens` 解析 `compileCommand` 模板，`compilerPath`/`staticOption`/`compileOptions` 均按词法分词），路径含 `"`/`;`/`&`/`|` 等不再截断或注入；`buildRunCommand*` 对 `inputFile`/`outputFile`/`exeName` 统一经 `shellEscapePosix`/`shellEscapeWin` 转义，`"`→`""`（Win）/`'\''`（POSIX）避免 `inputFile='a"; rm -rf /'` 劫持。
