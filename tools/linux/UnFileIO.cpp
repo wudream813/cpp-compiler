@@ -45,8 +45,9 @@ void removeDir(const char* path) {
             char buf[PATH_MAX];
             snprintf(buf, PATH_MAX, "%s/%s", path, p->d_name);
             struct stat statbuf;
-            if (!stat(buf, &statbuf)) {
-                if (S_ISDIR(statbuf.st_mode)) removeDir(buf);
+            if (!lstat(buf, &statbuf)) {
+                if (S_ISLNK(statbuf.st_mode)) unlink(buf);
+                else if (S_ISDIR(statbuf.st_mode)) removeDir(buf);
                 else unlink(buf);
             }
         }
@@ -58,7 +59,7 @@ void removeDir(const char* path) {
 bool createTempSubDir(char* tempDir, size_t size) {
     const char* base = getenv("TMPDIR");
     if (!base) base = "/tmp";
-    snprintf(tempDir, size, "%s/dream-cpp-compiler/tmp_%lld", base, (long long)time(NULL));
+    snprintf(tempDir, size, "%s/dream-cpp-compiler/tmp_%lld_%d_%d", base, (long long)time(NULL), (int)getpid(), rand() % 10000);
     return mkdir(tempDir, 0777) == 0;
 }
 

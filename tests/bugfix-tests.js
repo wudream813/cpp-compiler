@@ -119,16 +119,29 @@ async function run() {
         compileCommand: '"<cPath>" "<cppPath>" <option> -o "<outPath>" --from-template',
         CompileDefaultValue: '-std=c++14 -O2'
       });
+      const realSpawn = cp.spawn;
       cp.exec = (command, callback) => {
         stub.execs.push(command);
         if (callback) setImmediate(() => callback(null, '', ''));
-        return { kill() {}, pid: 1 };
+        return { kill() {}, pid: 1, stdout: { on() {} }, stderr: { on() {} }, on() { return this; } };
+      };
+      cp.spawn = (cmd, args, opts) => {
+        stub.execs.push([cmd, ...(args || [])].join(' '));
+        const proc = {
+          pid: 1,
+          kill() {},
+          stdout: { on(e, cb) { if (e === 'data') {} return proc; } },
+          stderr: { on(e, cb) { if (e === 'data') {} return proc; } },
+          on(e, cb) { if (e === 'close') setImmediate(() => cb(0)); return proc; }
+        };
+        return proc;
       };
       const ext = loadExtension(stub);
       useEditor(stub, mainCpp);
       ext.activate({ subscriptions: [], extensionUri: {} });
       await stub.commands.find(([id]) => id === 'dream-cpp-compiler.cppCompile')[1]();
       assert(stub.execs.some((c) => c.includes('--from-template')), 'compileCommand 模板必须真正用于编译');
+      cp.spawn = realSpawn;
       ext.deactivate();
     }
 

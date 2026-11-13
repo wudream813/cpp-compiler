@@ -68,8 +68,10 @@ void removeDir(const char* path) {
             if (buf) {
                 struct stat statbuf;
                 snprintf(buf, len, "%s/%s", path, p->d_name);
-                if (!stat(buf, &statbuf)) {
-                    if (S_ISDIR(statbuf.st_mode))
+                if (!lstat(buf, &statbuf)) {
+                    if (S_ISLNK(statbuf.st_mode))
+                        unlink(buf);
+                    else if (S_ISDIR(statbuf.st_mode))
                         removeDir(buf);
                     else
                         unlink(buf);
@@ -92,19 +94,13 @@ bool copyFileMac(const char* src, const char* dst) {
 bool createTempSubDir(char* tempDir, size_t size) {
     const char* base = getenv("TMPDIR");
     if (!base) base = "/tmp";
-
-    // 移除末尾斜杠
     string baseStr = base;
     if (baseStr.back() == '/') baseStr.pop_back();
-
-    snprintf(tempDir, size, "%s/dream-cpp-compiler/tmp_%lld", baseStr.c_str(), (long long)time(NULL));
-
-    // mkdir -p 逻辑需要逐级创建，这里简化处理，假设 parent 存在或者仅创建最后一级
-    // 为保险起见，先尝试创建父目录
+    // 加入 pid 与随机数，避免同一秒并发冲突
+    snprintf(tempDir, size, "%s/dream-cpp-compiler/tmp_%lld_%d_%d", baseStr.c_str(), (long long)time(NULL), (int)getpid(), rand() % 10000);
     char parentDir[MAX_PATH];
     snprintf(parentDir, MAX_PATH, "%s/dream-cpp-compiler", baseStr.c_str());
     mkdir(parentDir, 0755);
-
     return mkdir(tempDir, 0755) == 0 || errno == EEXIST;
 }
 
@@ -167,35 +163,46 @@ int main(int argc, char* argv[]) {
     if (willInputIsCon && willOutputIsCon) {
         return runExe(argv[1], nullptr);
     }
-
-
     const char* commandArg = argv[1];
     const char* programInput = argv[2];
     const char* programOutput = argv[3];
     const char* willInput = argv[4];
     const char* willOutput = argv[5];
-
-    char tempDir[MAX_PATH], tempInput[MAX_PATH], tempOutput[MAX_PATH];
-
-    if (!createTempSubDir(tempDir, sizeof(tempDir))) {
-        printf("无法创建临时目录\n");
-        return -1;
+    char tempDir[MAX_PATH], tempInput[MAX_PATH] = {0}, tempOutput[MAX_PATH] = {0};
+    bool needTemp = !willInputIsCon || !willOutputIsCon;
+    if (needTemp) {
+        if (!createTempSubDir(tempDir, sizeof(tempDir))) {
+            printf("无法创建临时目录\n");
+            return -1;
+        }
+        if (!willInputIsCon) snprintf(tempInput, MAX_PATH, "%s/%s", tempDir, willInput);
+        if (!willOutputIsCon) snprintf(tempOutput, MAX_PATH, "%s/%s", tempDir, willOutput);
+    } else {
+        tempDir[0] = 0;
     }
-
-    snprintf(tempInput, MAX_PATH, "%s/%s", tempDir, willInput);
-    snprintf(tempOutput, MAX_PATH, "%s/%s", tempDir, willOutput);
-
-    if (!copyFileMac(programInput, tempInput)) {
-        printf("无法复制输入文件到临时目录\n");
-        removeDir(tempDir);
-        return -1;
+    if (!willInputIsCon) {
+        if (progInputIsCon) {
+            if (!writeStdinToFile(tempInput)) {
+                printf("无法从控制台读取输入到临时目录\n");
+                if (needTemp) removeDir(tempDir);
+                return -1;
+            }
+        } else {
+            if (!copyFileMac(programInput, tempInput)) {
+                printf("无法复制输入文件到临时目录\n");
+                if (needTemp) removeDir(tempDir);
+                return -1;
+            }
+        }
     }
-
-    int ret = runExe(commandArg, tempDir);
-
-    copyFileMac(tempOutput, programOutput);
-
-    removeDir(tempDir);
-
+    int ret = runExe(commandArg, needTemp ? tempDir : nullptr);
+    if (!willOutputIsCon) {
+        if (progOutputIsCon) {
+            dumpFileToStdout(tempOutput);
+        } else {
+            copyFileMac(tempOutput, programOutput);
+        }
+    }
+    if (needTemp) removeDir(tempDir);
     return ret;
 }

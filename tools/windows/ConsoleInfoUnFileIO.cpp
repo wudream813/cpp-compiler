@@ -1,6 +1,7 @@
 #include <cctype>
 #include <Windows.h>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 bool isConsoleFile(const char* p) {
     if (!p || !*p) return false;
@@ -55,7 +56,7 @@ bool createTempSubDir(char* tempDir, size_t size) {
     char base[MAX_PATH];
     if (!GetTempPathA(MAX_PATH, base)) return false;
 
-    snprintf(tempDir, size, "%s\\dream-cpp-compiler\\tmp_%lld", base, (long long)time(NULL));
+    snprintf(tempDir, size, "%s\\dream-cpp-compiler\\tmp_%lld_%d_%d", base, (long long)time(NULL), (int)GetCurrentProcessId(), rand() % 10000);
 
     return CreateDirectoryA(tempDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
 }

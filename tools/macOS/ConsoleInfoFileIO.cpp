@@ -9,11 +9,64 @@
 #include <sys/resource.h>
 #include <time.h>
 
+#include <cctype>
+#include <string>
+#include <algorithm>
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
 int main(int argc, char* argv[]) {
     if (argc != 4) {
         printf("用法：ConsoleInfoFileIO <command> <inputFile> <outputFile>\n");
         return -1;
     }
+    bool inputIsCon = isConsoleFile(argv[2]);
+    bool outputIsCon = isConsoleFile(argv[3]);
+    if (inputIsCon && outputIsCon) {
+        // Both CON: directly run without redirection
+        pid_t pid2 = fork();
+        if (pid2 == 0) {
+            char* args[] = { argv[1], NULL };
+            execvp(argv[1], args);
+            _exit(127);
+        }
+        int st; struct rusage __u; waitpid(pid2, &st, 0); getrusage(RUSAGE_CHILDREN, &__u);
+        return 0;
+    }
+    if (inputIsCon || outputIsCon) {
+        // Single CON: fallback to shell redirection which handles CON as console passthrough
+        // Use exe path directly with shell to allow CON passthrough
+        // We construct shell command
+        char shellCmd[4096];
+        if (inputIsCon && !outputIsCon) snprintf(shellCmd, sizeof(shellCmd), "\"%s\" > \"%s\"", argv[1], argv[3]);
+        else if (!inputIsCon && outputIsCon) snprintf(shellCmd, sizeof(shellCmd), "\"%s\" < \"%s\"", argv[1], argv[2]);
+        else snprintf(shellCmd, sizeof(shellCmd), "\"%s\"", argv[1]);
+        pid_t pid3 = fork();
+        if (pid3 == 0) { execl("/bin/sh", "sh", "-c", shellCmd, NULL); _exit(127); }
+        int st2; waitpid(pid3, &st2, 0);
+        return 0;
+    }
+
 
     // 打开文件
     int fdIn = open(argv[2], O_RDONLY);

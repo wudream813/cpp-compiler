@@ -1,4 +1,15 @@
+## 7.4.4
+
+- 修复剩余 shell 注入面：`CompileModule`/`OnlyCompile` 由 `exec(shell)` 改为 `spawn` 数组（`parseShellTokens` 解析 `compileCommand` 模板，`compilerPath`/`staticOption`/`compileOptions` 均按词法分词），路径含 `"`/`;`/`&`/`|` 等不再截断或注入；`buildRunCommand*` 对 `inputFile`/`outputFile`/`exeName` 统一经 `shellEscapePosix`/`shellEscapeWin` 转义，`"`→`""`（Win）/`'\''`（POSIX）避免 `inputFile='a"; rm -rf /'` 劫持。
+- 修复 `buildTerminalCommandMacOS` 的 AppleScript 注入：原 `JSON.stringify(fullShellCmd)` 直接塞进 `do script "${escapedCmd}"`，`"` 会截断脚本；现经 `appleScriptEscape` 转义 `\\`/`"`/`\n`，路径含 `"` 时外部终端可正常打开。
+- 修复 `GetExePath` 缺占位符：补 `<base>`（`<baseName>` 别名）与 `<var>` 替换，与 `runProgram` 的 `replacePlaceholders` 对齐，`outputPath="<cppDir>/<base>.exe"` 或含 `<var>` 时不再残留字面量。
+- 修复 `sanitizeCompileOptions` 漏逗号：`[=\s]?` → `[=\s,]?`，`-Wl,--stack,400000000` 现被完整剔除，Linux/macOS 不再残留 `,400000000` 导致 `ld` 报错。
+- 加固 `tools/*/removeDir` 符号链接：`stat`→`lstat`，`S_ISLNK` 时仅 `unlink` 不递归，防止临时目录被替换为指向外部的 symlink 时误删。
+- `moreCommand` 含 `;&|\`$()` 等元字符时输出 `ShowWarn` 提示（仍按用户配置原样执行，兼容刻意 `&&` 链式），并随 `AUDIT_7.4.3.md` 记录 11 项审计结果。
+- 同步修复 `macOS/ChangeFileIO.cpp` 混合 CON 回归（仅双 CON 直通，单侧仍 `copyFileMac`）与 `ConsoleInfoFileIO` 三平台 CON 透传缺失（新增 `isConsoleFile` 单侧 `fork/sh` 回退），`createTempSubDir` 加 `pid+rand` 防同秒并发。
+
 ## 7.4.3
+
 
 - 修复“反文件读写”不适用从 CON 读入 / 输出的文件读写的问题：`CON` / `CONIN$` / `NUL` / `/dev/tty` 等控制台设备名此前会被当成普通文件去创建临时文件，在 Windows 上会因保留名直接失败，混合模式（控制台读入而文件输出，或反之）也无法处理。现在 `extension.js` 新增 `isConsoleDevicePath` 检测，`UnFileIO` / `ChangeFileIO`（含 `ConsoleInfo*` 变体）在所有平台（`tools/linux` / `macOS` / `windows`）均支持：输入输出均为 CON 时直接运行；仅一侧为 CON 时只处理另一侧的文件（控制台读入而文件输出，或文件读入而控制台输出），避免把控制台设备当成普通文件 `rm -rf` 或 `CopyFile`。
 - 文件重定向（`ConsoleInfoFileIO` / shell `< >`）同样支持单侧 CON：输入或输出为 CON 时跳过该侧的重定向，控制台透传。

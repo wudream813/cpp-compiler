@@ -58,8 +58,9 @@ void removeDir(const char* path) {
         char buf[MAX_PATH];
         snprintf(buf, sizeof(buf), "%s/%s", path, p->d_name);
         struct stat statbuf;
-        if (!stat(buf, &statbuf)) {
-            if (S_ISDIR(statbuf.st_mode)) removeDir(buf);
+        if (!lstat(buf, &statbuf)) {
+            if (S_ISLNK(statbuf.st_mode)) unlink(buf);
+            else if (S_ISDIR(statbuf.st_mode)) removeDir(buf);
             else unlink(buf);
         }
     }

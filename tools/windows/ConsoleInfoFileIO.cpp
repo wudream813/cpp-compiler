@@ -3,6 +3,32 @@
 #include <conio.h>
 #include <string.h>
 
+#include <cctype>
+#include <string>
+#include <algorithm>
+bool isConsoleFile(const char* path) {
+    if (!path || !*path) return false;
+    std::string p(path);
+    std::string lower = p;
+    for (char &c : lower) c = std::tolower((unsigned char)c);
+    if (lower == "con" || lower == "conin$" || lower == "conout$" || lower == "nul" || lower == "aux" || lower == "prn") return true;
+    if (lower == "/dev/stdin" || lower == "/dev/stdout" || lower == "/dev/stderr" || lower == "/dev/tty" || lower == "/dev/console") return true;
+    if (lower.rfind("/dev/pts/", 0) == 0) return true;
+    size_t sep = p.find_last_of("/\\");
+    std::string base = (sep == std::string::npos) ? p : p.substr(sep + 1);
+    size_t dot = base.find('.');
+    std::string nameNoExt = (dot == std::string::npos) ? base : base.substr(0, dot);
+    std::string nameLower = nameNoExt;
+    for (char &c : nameLower) c = std::tolower((unsigned char)c);
+    const std::string reserved[] = {"con","conin$","conout$","nul","aux","prn","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"};
+    for (auto &r : reserved) if (nameLower == r) return true;
+    std::string baseLower = base;
+    for (char &c : baseLower) c = std::tolower((unsigned char)c);
+    for (auto &r : reserved) if (baseLower == r) return true;
+    return false;
+}
+
+
 typedef struct _PROCESS_MEMORY_COUNTERS {
     DWORD cb;
     DWORD PageFaultCount;
@@ -16,21 +42,40 @@ typedef struct _PROCESS_MEMORY_COUNTERS {
     SIZE_T PeakPagefileUsage;
 } PROCESS_MEMORY_COUNTERS;
 
-// º¯ÊýÖ¸ÕëÀàÐÍ
+// Ö¸
 typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
 
-// ¸¨Öúº¯Êý£ºÉèÖÃ¾ä±ú¼Ì³ÐÐÔ
+// Ã¾Ì³
 void SetHandleInheritance(HANDLE hHandle, bool inherit) {
     SetHandleInformation(hHandle, HANDLE_FLAG_INHERIT, inherit ? HANDLE_FLAG_INHERIT : 0);
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        printf("ÓÃ·¨£ºConsoleInfoFileIO.exe <command> <inputFile> <outputFile>\n");
+        printf("Ã·ConsoleInfoFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
+    bool inputIsCon = isConsoleFile(argv[2]);
+    bool outputIsCon = isConsoleFile(argv[3]);
+    if (inputIsCon && outputIsCon) {
+        STARTUPINFOA si={sizeof(si)}; PROCESS_INFORMATION pi;
+        char cmdLine[MAX_PATH*2]; snprintf(cmdLine,sizeof(cmdLine),"\"%s\"",argv[1]);
+        if(!CreateProcessA(NULL,cmdLine,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)) return -1;
+        WaitForSingleObject(pi.hProcess,INFINITE); DWORD c=0; GetExitCodeProcess(pi.hProcess,&c); CloseHandle(pi.hProcess); CloseHandle(pi.hThread); return (int)c;
+    }
+    if (inputIsCon || outputIsCon) {
+        char shellCmd[4096];
+        if (inputIsCon && !outputIsCon) snprintf(shellCmd,sizeof(shellCmd),"\"%s\" > \"%s\"",argv[1],argv[3]);
+        else if (!inputIsCon && outputIsCon) snprintf(shellCmd,sizeof(shellCmd),"\"%s\" < \"%s\"",argv[1],argv[2]);
+        else snprintf(shellCmd,sizeof(shellCmd),"\"%s\"",argv[1]);
+        STARTUPINFOA si={sizeof(si)}; PROCESS_INFORMATION pi;
+        char cmdLine2[4096*2]; snprintf(cmdLine2,sizeof(cmdLine2),"cmd /c %s",shellCmd);
+        if(!CreateProcessA(NULL,cmdLine2,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)) return -1;
+        WaitForSingleObject(pi.hProcess,INFINITE); DWORD c2=0; GetExitCodeProcess(pi.hProcess,&c2); CloseHandle(pi.hProcess); CloseHandle(pi.hThread); return (int)c2;
+    }
 
-    // ´ò¿ªÊäÈëÎÄ¼þ
+
+    // Ä¼
     HANDLE hInput = CreateFileA(
         argv[2],
         GENERIC_READ,
@@ -42,11 +87,11 @@ int main(int argc, char* argv[]) {
     );
 
     if (hInput == INVALID_HANDLE_VALUE) {
-        printf("´ò¿ªÊäÈëÎÄ¼þÊ§°Ü: %s£¬´íÎóÂë: %d\n", argv[2], GetLastError());
+        printf("Ä¼Ê§: %s: %d\n", argv[2], GetLastError());
         return -1;
     }
 
-    // ´ò¿ªÊä³öÎÄ¼þ
+    // Ä¼
     HANDLE hOutput = CreateFileA(
         argv[3],
         GENERIC_WRITE,
@@ -58,21 +103,21 @@ int main(int argc, char* argv[]) {
     );
 
     if (hOutput == INVALID_HANDLE_VALUE) {
-        printf("´ò¿ªÊä³öÎÄ¼þÊ§°Ü: %s£¬´íÎóÂë: %d\n", argv[3], GetLastError());
+        printf("Ä¼Ê§: %s: %d\n", argv[3], GetLastError());
         CloseHandle(hInput);
         return -1;
     }
 
-    // ÅäÖÃ¾ä±ú¼Ì³ÐÐÔ
+    // Ã¾Ì³
     SetHandleInheritance(hInput, true);
     SetHandleInheritance(hOutput, true);
 
-    // Ã÷È·Ê¹ÓÃANSI°æ±¾µÄ½á¹¹Ìå
-    STARTUPINFOA StartupInfo;  // ÕâÀïÊ¹ÓÃSTARTUPINFOA¶ø·ÇSTARTUPINFO
+    // È·Ê¹ANSIæ±¾Ä½á¹¹
+    STARTUPINFOA StartupInfo;  // Ê¹STARTUPINFOASTARTUPINFO
     PROCESS_INFORMATION ProcessInfo;
     memset(&ProcessInfo, 0, sizeof(ProcessInfo));
     memset(&StartupInfo, 0, sizeof(StartupInfo));
-    StartupInfo.cb = sizeof(STARTUPINFOA);  // Ã÷È·Ö¸¶¨ANSI°æ±¾´óÐ¡
+    StartupInfo.cb = sizeof(STARTUPINFOA);  // È·Ö¸ANSIæ±¾Ð¡
     StartupInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
     StartupInfo.wShowWindow = SW_HIDE;
     StartupInfo.hStdInput = hInput;
@@ -82,12 +127,12 @@ int main(int argc, char* argv[]) {
     char cmdLine[MAX_PATH * 2];
     snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", argv[1]);
 
-    // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
+    // Â¼Ê¼Ê±
     LARGE_INTEGER StartingTime, EndingTime, Frequency;
     QueryPerformanceFrequency(&Frequency);
     QueryPerformanceCounter(&StartingTime);
 
-    // ´´½¨½ø³Ì£¨Ê¹ÓÃANSI°æ±¾µÄCreateProcessA£©
+    // Ì£Ê¹ANSIæ±¾CreateProcessA
     if (!CreateProcessA(
         NULL,
         cmdLine,
@@ -97,19 +142,19 @@ int main(int argc, char* argv[]) {
         0,
         NULL,
         NULL,
-        &StartupInfo,  // ÏÖÔÚÀàÐÍÆ¥ÅäÁË
+        &StartupInfo,  // Æ¥
         &ProcessInfo
     )) {
-        printf("´´½¨½ø³ÌÊ§°Ü: %s£¬´íÎóÂë: %d\n", argv[1], GetLastError());
+        printf("Ê§: %s: %d\n", argv[1], GetLastError());
         CloseHandle(hInput);
         CloseHandle(hOutput);
         return -1;
     }
 
-    // µÈ´ý½ø³Ì½áÊø
+    // È´Ì½
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
 
-    // »ñÈ¡²¢Êä³öÍ³¼ÆÐÅÏ¢
+    // È¡Í³Ï¢
     PROCESS_MEMORY_COUNTERS pmc = {};
     HMODULE hPsapi = LoadLibraryA("Psapi.dll");
     if (hPsapi) {
@@ -141,20 +186,20 @@ int main(int argc, char* argv[]) {
     ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10;
     ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;
 
-    // ÇåÀí×ÊÔ´
+    // Ô´
     CloseHandle(ProcessInfo.hProcess);
     CloseHandle(ProcessInfo.hThread);
     CloseHandle(hInput);
     CloseHandle(hOutput);
 
-    // Êä³ö½á¹û
+    // 
     printf("\n-----------------------------------------------");
-    printf("\n×ÜÖ´ÐÐÊ±¼ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÄÚ´æÊ¹ÓÃ£º%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
-    printf("\nCPUÄÚºËÊ±¼ä£º%.3f Ãë", totalKernelTime / 1000000.0);
-    printf("\nCPUÓÃ»§Ê±¼ä£º%.3f Ãë", totalUserTime / 1000000.0);
-    printf("\n×ÜCPUÊ±¼ä£º%.3f Ãë", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\n³ÌÐò·µ»ØÖµ£º%ld (0x%lX)", returnValue, returnValue);
+    printf("\nÖ´Ê±ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nÚ´Ê¹Ã£%lu KB", (unsigned long)(pmc.PeakWorkingSetSize >> 10));
+    printf("\nCPUÚºÊ±ä£º%.3f ", totalKernelTime / 1000000.0);
+    printf("\nCPUÃ»Ê±ä£º%.3f ", totalUserTime / 1000000.0);
+    printf("\nCPUÊ±ä£º%.3f ", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\nò·µ»Öµ%ld (0x%lX)", returnValue, returnValue);
     printf("\n-----------------------------------------------");
     return 0;
 }
