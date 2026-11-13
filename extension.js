@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const { compileSourceFile } = require('./src/compiler');
 const { debugFlags } = require('./src/debugIntegration');
 const { DebugBuildCache } = require('./src/debugCache');
@@ -20,12 +20,68 @@ const compileOutput = vscode.window.createOutputChannel('dream-cpp-compiler:编�
 const commandOutput = vscode.window.createOutputChannel('dream-cpp-compiler', {log: true});
 let fileConfigs = {};
 
+// 每个终端里正在运行的 shell 命令数量。只有当终端确实有命令在运行时才发送 Ctrl+C：
+// 向空闲的 shell 写入 ETX(\x03) 会让 cmd.exe 以 STATUS_CONTROL_C_EXIT(-1073741510) 退出，
+// 这正是内置终端“编译成功、运行时却提示终端进程已终止”的根因。
+const terminalsWithRunningCommand = new Map();
+
+function trackTerminalShellExecutions(context) {
+    if (typeof vscode.window.onDidStartTerminalShellExecution === 'function') {
+        context.subscriptions.push(vscode.window.onDidStartTerminalShellExecution((e) => {
+            terminalsWithRunningCommand.set(e.terminal, (terminalsWithRunningCommand.get(e.terminal) || 0) + 1);
+        }));
+    }
+    if (typeof vscode.window.onDidEndTerminalShellExecution === 'function') {
+        context.subscriptions.push(vscode.window.onDidEndTerminalShellExecution((e) => {
+            const left = (terminalsWithRunningCommand.get(e.terminal) || 0) - 1;
+            if (left > 0) terminalsWithRunningCommand.set(e.terminal, left);
+            else terminalsWithRunningCommand.delete(e.terminal);
+        }));
+    }
+    if (typeof vscode.window.onDidCloseTerminal === 'function') {
+        context.subscriptions.push(vscode.window.onDidCloseTerminal((terminal) => {
+            terminalsWithRunningCommand.delete(terminal);
+        }));
+    }
+}
+
+// 单引号转义，用于 POSIX shell / AppleScript 中的路径
+function shellEscapePosix(value) {
+    return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+// 去掉扩展名后的文件名，供 <baseName> / <base> 使用（支持 .cc/.cxx/.c++/.CPP 等）
+function getBaseName(filePath) {
+    const name = path.basename(String(filePath || ''));
+    const ext = path.extname(name);
+    return ext ? name.slice(0, -ext.length) : name;
+}
+
+function execFileAsync(command, args) {
+    return new Promise((resolve, reject) => {
+        execFile(command, args, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+    });
+}
+
 function openInTerminal(targetPath) {
     const platform = process.platform;
 
     if (platform === 'win32') {
-        // Windows: cmd
-        exec(`start cmd.exe /K "cd /d ${targetPath}"`);
+        // Windows: 用参数数组启动，避免路径中的空格、& 等字符被 cmd 解释
+        const comspec = process.env.ComSpec || 'cmd.exe';
+        try {
+            // windowsVerbatimArguments：自行拼好命令行，避免 Node 把引号转义成 \" 导致 cmd 解析失败
+            const child = spawn(comspec, ['/c', 'start', '""', 'cmd.exe', '/K', `cd /d "${targetPath}"`], {
+                detached: true,
+                stdio: 'ignore',
+                windowsHide: false,
+                windowsVerbatimArguments: true
+            });
+            child.on('error', (err) => ShowError(`打开外部终端失败：${err.message}`));
+            child.unref();
+        } catch (err) {
+            ShowError(`打开外部终端失败：${err.message}`);
+        }
     } else if (platform === 'darwin') {
         // macOS: osascript
         const cdCmd = `cd ${shellEscapePosix(targetPath)}`;
@@ -36,16 +92,42 @@ function openInTerminal(targetPath) {
             `end tell`,
         ].join("\n");
 
-        exec(`osascript -e ${JSON.stringify(appleScript)}`);
+        execFileAsync('osascript', ['-e', appleScript]).catch((err) => {
+            ShowError(`打开外部终端失败：${err.message}`);
+        });
     } else {
-        // Linux: gnome-terminal
-        exec(`gnome-terminal --working-directory=${targetPath}`);
+        // Linux: 依次尝试常见终端
+        const candidates = [
+            ['gnome-terminal', [`--working-directory=${targetPath}`]],
+            ['konsole', ['--workdir', targetPath]],
+            ['xfce4-terminal', [`--working-directory=${targetPath}`]],
+            ['x-terminal-emulator', ['--working-directory', targetPath]],
+            ['xterm', ['-e', `cd ${shellEscapePosix(targetPath)} && exec $SHELL`]]
+        ];
+        (async () => {
+            let lastError;
+            for (const [command, args] of candidates) {
+                try {
+                    const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+                    await new Promise((resolve, reject) => {
+                        child.once('spawn', resolve);
+                        child.once('error', reject);
+                    });
+                    child.unref();
+                    return;
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+            ShowError(`打开外部终端失败：${lastError ? lastError.message : '未找到可用终端'}`);
+        })();
     }
 }
 
 function makeTerminal() {
     if (process.platform === 'win32') {
-        return vscode.window.createTerminal({ name: "dream-cpp-compiler:运行", shellPath: "C:\\Windows\\System32\\cmd.exe" });
+        // 不要硬编码 C:\Windows：系统盘不一定是 C 盘
+        return vscode.window.createTerminal({ name: "dream-cpp-compiler:运行", shellPath: process.env.ComSpec || 'cmd.exe' });
     } else {
         return vscode.window.createTerminal("dream-cpp-compiler:运行");
     }
@@ -155,7 +237,7 @@ function GetExePath(cppPath) {
     const outputPathTemplate = getFileConfig(cppPath, 'outputPath') || '<cppDir>/<baseName>';
 
     // 替换模板中的变量
-    const baseName = path.basename(cppPath, '.cpp');
+    const baseName = getBaseName(cppPath);
     const cppDir = path.dirname(cppPath);
     const workdir = vscode.workspace.workspaceFolders ?
         vscode.workspace.workspaceFolders[0].uri.fsPath : cppDir;
@@ -185,8 +267,9 @@ function getCachedHash(key) {
     return cache[key] || null;
 }
 
-// 判断是否需要重新编译
-function needsRecompile(filePath, compileOptions, compilerPath) {
+// 判断是否需要重新编译。signature 包含编译选项、编译器路径与编译命令模板，
+// 任何一项变化都会触发重新编译（否则改了编译命令却不会重编）。
+function needsRecompile(filePath, signature) {
     try {
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const currentHash = md5(fileContent);
@@ -196,7 +279,7 @@ function needsRecompile(filePath, compileOptions, compilerPath) {
         if (!cachedData) return true;
         if (!fs.existsSync(executablePath)) return true;
 
-        return cachedData !== `${currentHash}|${compileOptions}|${compilerPath}`;
+        return cachedData !== `${currentHash}|${signature}`;
     } catch (err) {
         ShowError(`检查是否需要重新编译时出错:${err.message}`);
         return true;
@@ -204,7 +287,7 @@ function needsRecompile(filePath, compileOptions, compilerPath) {
 }
 
 function parseFileHeaderConfig(filePath) {
-    const baseName = path.basename(filePath, ".cpp");
+    const baseName = getBaseName(filePath);
     let config = {
         inputFile: (getConfig('FileInputDefaultValue') || `<base>.in`).replace(/<base>/g, baseName),
         outputFile: (getConfig('FileOutputDefaultValue') || `<base>.out`).replace(/<base>/g, baseName),
@@ -212,11 +295,12 @@ function parseFileHeaderConfig(filePath) {
         unFileOutputFile: (getConfig('UnFileOutputDefaultValue') || `<base>.out`).replace(/<base>/g, baseName),
         useFileRedirect: getConfig('useFileRedirectDefaultValue') || false,
         useUnFileRedirect: getConfig('useUnFileRedirectDefaultValue') || false,
-        compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') || true,
-        runControlCardOpen: getConfig('runControlCardDefaultStatus') || true,
-        advancedCardOpen: getConfig('advancedCardDefaultStatus') || false,
-        fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') || false,
-        compileOptions: getConfig('CompileDefaultValue') || '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000',
+        // 注意：不能用 `|| true`，否则用户把默认值设为 false 会被强制成 true
+        compileOptionsCardOpen: getConfig('compileOptionsCardDefaultStatus') ?? true,
+        runControlCardOpen: getConfig('runControlCardDefaultStatus') ?? true,
+        advancedCardOpen: getConfig('advancedCardDefaultStatus') ?? false,
+        fileOperationsCardOpen: getConfig('fileOperationsCardDefaultStatus') ?? false,
+        compileOptions: getConfig('CompileDefaultValue') || getDefaultCompileOptions(),
         useStaticLinking: getConfig('useStaticDefaultValue') || false,
         moreCommand: (getConfig('moreCommandDefaultValue') || '').replace(/<base>/g, baseName),
         customVariable: getConfig('customVariableDefaultValue') || '',
@@ -224,11 +308,12 @@ function parseFileHeaderConfig(filePath) {
         WorkDir: (getConfig('WorkDirDefaultValue') || '<cppDir>'),
         tempCppPath: '',
         staticOption: getConfig('staticOption') || '-static',
-        compileCommand: getConfig('compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"'
+        compileCommand: getConfig('compileCommand') || '"<cPath>" "<cppPath>" <option> -o "<outPath>"'
     };
     try {
         if (!fs.existsSync(filePath)) {
-            return null;
+            // 文件不存在也返回默认配置：调用方（getFileConfig / 侧边栏）不应因此崩溃
+            return config;
         }
 
         const content = fs.readFileSync(filePath, 'utf8');
@@ -311,6 +396,14 @@ function parseFileHeaderConfig(filePath) {
     return config;
 }
 
+// 能从文件头注释解析出来的 key（与 parseFileHeaderConfig 保持一致）。
+// useConsoleInfo 属于全局设置，写入文件头没有任何作用，只会污染源码。
+const FILE_HEADER_KEYS = new Set([
+    'compileoptions', 'usestaticlinking', 'outputpath', 'compilecommand',
+    'inputfile', 'outputfile', 'unfileinputfile', 'unfileoutputfile',
+    'usefileredirect', 'useunfileredirect', 'morecommand', 'customvariable', 'workdir'
+]);
+
 async function updateCppConfigInEditor(editor, newConfig) {
     if (!editor) return;
 
@@ -324,8 +417,8 @@ async function updateCppConfigInEditor(editor, newConfig) {
         // 记录已经处理过的 Key (转为小写以便对比)
         const processedKeys = new Set();
 
-        // 获取 newConfig 的所有 key
-        const configKeys = Object.keys(newConfig);
+        // 获取 newConfig 的所有 key（只要文件头能解析的）
+        const configKeys = Object.keys(newConfig).filter(k => FILE_HEADER_KEYS.has(k.toLowerCase()));
 
         // 1. 扫描并修改现有行
         for (let i = 0; i < scanLimit; i++) {
@@ -404,6 +497,7 @@ async function updateCppConfigInEditor(editor, newConfig) {
 
 // 获取当前文件的配置
 function getFileConfig(filePath, key) {
+    if (!filePath) return undefined;
     if (!fileConfigs[filePath]) {
         // 默认配置
         fileConfigs[filePath] = parseFileHeaderConfig(filePath);
@@ -413,11 +507,19 @@ function getFileConfig(filePath, key) {
 
 // 设置当前文件的配置
 function setFileConfig(filePath, key, value) {
+    if (!filePath) return;
     if (!fileConfigs[filePath]) {
         // 默认配置
         fileConfigs[filePath] = parseFileHeaderConfig(filePath);
     }
     fileConfigs[filePath][key] = value;
+}
+
+// 文件被保存后丢弃缓存，使手改文件头注释立即生效
+function invalidateFileConfig(filePath) {
+    if (filePath && fileConfigs[filePath]) {
+        delete fileConfigs[filePath];
+    }
 }
 
 function checkFilePath() {
@@ -502,31 +604,72 @@ async function resolveCompileSourcePath(filePath) {
     return tempCppPath || filePath;
 }
 
+function execAsync(command) {
+    return new Promise((resolve, reject) => {
+        exec(command, (error) => (error ? reject(error) : resolve()));
+    });
+}
+
 async function CompileModule(filePath, ModuleName, executablePath) {
     const compilerPath = getConfig('compilerPath') || 'g++';
-    const compileCommand = `"${compilerPath}" "${filePath}" ${getConfig('staticOption') || '-static'} -o "${executablePath}"`;
-    ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${compileCommand}\n`]);
+    const staticOption = getConfig('staticOption');
+    const baseCommand = `"${compilerPath}" "${filePath}"`;
+    // 先按静态编译尝试；静态链接不可用时（例如 macOS 的 clang 不支持 -static）自动回退
+    const commands = [];
+    if (staticOption !== '') commands.push(`${baseCommand} ${staticOption || '-static'} -o "${executablePath}"`);
+    commands.push(`${baseCommand} -o "${executablePath}"`);
 
-    if (await fs.existsSync(executablePath)) {
+    ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${commands[0]}\n`]);
+
+    if (fs.existsSync(executablePath)) {
         ShowInfo(`模块：${ModuleName} 曾被编译，无需再次编译`);
         return 1;
     }
 
-    return await vscode.window.withProgress({location: vscode.ProgressLocation.Notification, title: `模块 ${ModuleName} 正在编译...`}, async (progress) => {
-        return new Promise((resolve) => {
-            exec(compileCommand, (error) => {
-                if (error) {
-                    ShowErrors([`编译 ${ModuleName} 对应模块失败！`, `错误原因：\n${error.message}`]);
-                    showErrorText(error.message);
-                    vscode.window.showErrorMessage(`编译 ${ModuleName} 模块失败！`);
-                    resolve(0);
-                } else {
-                    ShowInfo(`模块：${ModuleName} 编译成功`);
-                    resolve(1);
+    return await vscode.window.withProgress({location: vscode.ProgressLocation.Notification, title: `模块 ${ModuleName} 正在编译...`}, async () => {
+        let lastError = null;
+        for (let i = 0; i < commands.length; i++) {
+            try {
+                await execAsync(commands[i]);
+                ShowInfo(`模块：${ModuleName} 编译成功`);
+                return 1;
+            } catch (error) {
+                lastError = error;
+                if (i + 1 < commands.length) {
+                    ShowWarn(`模块 ${ModuleName} 静态编译失败，尝试动态链接：${error.message}`);
                 }
-            });
-        });
+            }
+        }
+        ShowErrors([`编译 ${ModuleName} 对应模块失败！`, `错误原因：\n${lastError ? lastError.message : '未知错误'}`]);
+        showErrorText(lastError ? lastError.message : `编译 ${ModuleName} 失败`);
+        vscode.window.showErrorMessage(`编译 ${ModuleName} 模块失败！`);
+        return 0;
     });
+}
+
+// 默认编译选项：-Wl,--stack 是 Windows(MinGW) 专用，Linux/macOS 的 ld 会直接报错
+function getDefaultCompileOptions() {
+    if (process.platform === 'win32') {
+        return '-std=c++14 -O2 -Wall -Wextra -Wl,--stack=400000000';
+    }
+    return '-std=c++14 -O2 -Wall -Wextra';
+}
+
+// 用户可能把 Windows 版默认值抄到了 Linux/macOS 的设置里，这里去掉链接器不认识的参数
+function sanitizeCompileOptions(options) {
+    if (process.platform === 'win32') return options;
+    return String(options).replace(/(^|\s)-Wl,(?:--stack|--heap)[=\s]?\S*/g, ' ').trim();
+}
+
+// 编译命令模板：支持 <cPath> 等占位符，同时兼容旧版的 {cPath} 写法。
+// 用 split/join 而不是 String.replace，避免路径里的 $& 等被当成替换模式。
+function buildCompileCommand(template, params) {
+    let command = String(template || '"<cPath>" "<cppPath>" <option> -o "<outPath>"');
+    for (const name of Object.keys(params)) {
+        command = command.split(`<${name}>`).join(params[name]);
+        command = command.split(`{${name}}`).join(params[name]);
+    }
+    return command;
 }
 
 async function OnlyCompile(askUser, filePath, sourcePathOverride) {
@@ -537,19 +680,15 @@ async function OnlyCompile(askUser, filePath, sourcePathOverride) {
 
     const compilerPath = getConfig('compilerPath') || 'g++';
     const iSstatic = getFileConfig(filePath, 'useStaticLinking');
-    const compileOptions = getFileConfig(filePath, 'compileOptions') + (iSstatic ? ` ${getFileConfig(filePath, 'staticOption') || '-static'}` : '');
+    const compileOptions = sanitizeCompileOptions(getFileConfig(filePath, 'compileOptions')
+        + (iSstatic ? ` ${getFileConfig(filePath, 'staticOption') || '-static'}` : ''));
     const executablePath = GetExePath(filePath);
 
-    let compileCommandTemplate = getFileConfig(filePath, 'compileCommand') || '"{cPath}" "{cppPath}" {option} -o "{outPath}"';
-
-    let compileCommand = compileCommandTemplate
-        .replace(/<cPath>/g, compilerPath)
-        .replace(/<cppPath>/g, sourcePath)
-        .replace(/<option>/g, compileOptions)
-        .replace(/<outPath>/g, executablePath);
+    const compileCommandTemplate = getFileConfig(filePath, 'compileCommand') || '"<cPath>" "<cppPath>" <option> -o "<outPath>"';
+    const compileSignature = `${compileOptions}|${compilerPath}|${compileCommandTemplate}`;
 
     let forceCompile = false;
-    if (!needsRecompile(filePath, compileOptions, compilerPath)) {
+    if (!needsRecompile(filePath, compileSignature)) {
         ShowWarn(`程序 ${filePath} 未检测到变化，无需重新编译`);
         if (askUser) {
             const result = await vscode.window.showInformationMessage('未检测到变化，是否仍然编译？', '是', '否');
@@ -568,6 +707,13 @@ async function OnlyCompile(askUser, filePath, sourcePathOverride) {
 
     // 只有确定需要编译时才显示动画
     if (forceCompile) {
+        // 同一时间只允许一个编译任务（v4.1.0 的行为）
+        if (HaveBuildTask) {
+            ShowWarn(`程序 ${filePath} 跳过编译：已有编译任务正在进行`);
+            vscode.window.showWarningMessage('已有编译任务正在进行，请稍后再试');
+            return 0;
+        }
+
         try {
             if (fs.existsSync(executablePath)) {
                 fs.unlinkSync(executablePath);
@@ -576,7 +722,12 @@ async function OnlyCompile(askUser, filePath, sourcePathOverride) {
             ShowWarn('删除旧可执行文件时出错:' + err);
         }
 
-        const compileCommand = `"${compilerPath}" "${sourcePath}" ${compileOptions} -o "${executablePath}"`;
+        const compileCommand = buildCompileCommand(compileCommandTemplate, {
+            cPath: compilerPath,
+            cppPath: sourcePath,
+            option: compileOptions,
+            outPath: executablePath
+        });
         ShowInfos([`开始编译，编译程序：${filePath}`, `编译命令：${compileCommand}\n`]);
 
         compileStatus.text = '$(loading~spin) 正在编译...';
@@ -605,7 +756,7 @@ async function OnlyCompile(askUser, filePath, sourcePathOverride) {
                     } else {
                         const fileContent = fs.readFileSync(filePath, 'utf8');
                         const currentHash = md5(fileContent);
-                        saveHashCache(filePath, `${currentHash}|${compileOptions}|${compilerPath}`);
+                        saveHashCache(filePath, `${currentHash}|${compileSignature}`);
 
                         if (stderr) {
                             ShowWarns([`程序 ${filePath} 编译出现警告`, `编译命令：${compileCommand}`, `编译器警告：\n${stderr}`]);
@@ -665,7 +816,13 @@ async function OnlyCompile(askUser, filePath, sourcePathOverride) {
 // 核心编译逻辑
 async function compileAndRun(terminalType, filePathOverride) {
     const FilePath = filePathOverride || checkFilePath();
-    if (!FilePath || FilePath === "TEMP_FILE") return 0;
+    if (FilePath === "TEMP_FILE") {
+        // 非本地文件（未保存的 Untitled 等）：给出提示而不是静默失败
+        vscode.window.showWarningMessage('当前文件不是本地文件，请先在侧边栏勾选「以临时文件进行编译运行」');
+        ShowWarn('当前文件不是本地文件，已取消运行；请先勾选「以临时文件进行编译运行」');
+        return 0;
+    }
+    if (!FilePath) return 0;
     const sourcePath = await resolveCompileSourcePath(FilePath);
     if (!sourcePath) return 0;
     const result = await OnlyCompile(0, FilePath, sourcePath);
@@ -676,7 +833,12 @@ async function compileAndRun(terminalType, filePathOverride) {
 
 async function compileOnly(filePathOverride) {
     const FilePath = filePathOverride || checkFilePath();
-    if (!FilePath || FilePath === "TEMP_FILE") return 0;
+    if (FilePath === "TEMP_FILE") {
+        vscode.window.showWarningMessage('当前文件不是本地文件，请先在侧边栏勾选「以临时文件进行编译运行」');
+        ShowWarn('当前文件不是本地文件，已取消编译；请先勾选「以临时文件进行编译运行」');
+        return 0;
+    }
+    if (!FilePath) return 0;
     const sourcePath = await resolveCompileSourcePath(FilePath);
     if (!sourcePath) return 0;
     return await OnlyCompile(1, FilePath, sourcePath);
@@ -686,7 +848,7 @@ async function compileOnly(filePathOverride) {
 async function runProgram(filePath, terminalType) {
     const executablePath = GetExePath(filePath);
     const programDir = path.dirname(executablePath);
-    const baseName = path.basename(filePath, '.cpp');
+    const baseName = getBaseName(filePath);
     const cppDir = path.dirname(filePath);
     const workdir = vscode.workspace.workspaceFolders ?
         vscode.workspace.workspaceFolders[0].uri.fsPath : cppDir;
@@ -699,24 +861,19 @@ async function runProgram(filePath, terminalType) {
     const effectiveWorkdir = WorkDir ? WorkDir : programDir;
     const UseConsoleInfo = getConfig('useConsoleInfo') || false;
 
-    // 文件特定配置
+    // 文件特定配置。<base> 与 <baseName> 等价，两者都要替换：
+    // 侧边栏预览会用 <base>，文档也把它作为 moreCommand / 文件读写的占位符，
+    // 之前后端只替换 <baseName>，导致 <base> 被原样传给程序。
     const customVariable = getFileConfig(filePath, 'customVariable');
-    const inputFile = getFileConfig(filePath, 'inputFile')
+    const replacePlaceholders = (template) => String(template || '')
         .replace(/<var>/g, customVariable)
         .replace(/<cppDir>/g, cppDir)
-        .replace(/<baseName>/g, baseName);
-    const outputFile = getFileConfig(filePath, 'outputFile')
-        .replace(/<var>/g, customVariable)
-        .replace(/<cppDir>/g, cppDir)
-        .replace(/<baseName>/g, baseName);
-    const unFileInputFile = getFileConfig(filePath, 'unFileInputFile')
-        .replace(/<var>/g, customVariable)
-        .replace(/<cppDir>/g, cppDir)
-        .replace(/<baseName>/g, baseName);
-    const unFileOutputFile = getFileConfig(filePath, 'unFileOutputFile')
-        .replace(/<var>/g, customVariable)
-        .replace(/<cppDir>/g, cppDir)
-        .replace(/<baseName>/g, baseName);
+        .replace(/<baseName>/g, baseName)
+        .replace(/<base>/g, baseName);
+    const inputFile = replacePlaceholders(getFileConfig(filePath, 'inputFile'));
+    const outputFile = replacePlaceholders(getFileConfig(filePath, 'outputFile'));
+    const unFileInputFile = replacePlaceholders(getFileConfig(filePath, 'unFileInputFile'));
+    const unFileOutputFile = replacePlaceholders(getFileConfig(filePath, 'unFileOutputFile'));
     const useFileRedirect = getFileConfig(filePath, 'useFileRedirect');
     const useUnFileRedirect = getFileConfig(filePath, 'useUnFileRedirect');
 
@@ -724,10 +881,7 @@ async function runProgram(filePath, terminalType) {
     const toolPath = path.join(__dirname, 'tools');
 
     // 处理额外命令
-    let moreCommand = getFileConfig(filePath, 'moreCommand')
-        .replace(/<var>/g, customVariable)
-        .replace(/<cppDir>/g, cppDir)
-        .replace(/<baseName>/g, baseName);
+    let moreCommand = replacePlaceholders(getFileConfig(filePath, 'moreCommand'));
 
     let cdCommand, runCommand;
 
@@ -789,9 +943,15 @@ async function runProgram(filePath, terminalType) {
         }
 
         RunTerminal.show();
-        RunTerminal.sendText('^C\x03'); // 发送 Ctrl+C 尝试中断之前的进程
+        // 只有在终端里确实有命令在运行时才发送 Ctrl+C。
+        // 向空闲的 cmd.exe 写入 ETX(\x03) 会让它直接以 -1073741510 (STATUS_CONTROL_C_EXIT) 退出，
+        // 原来的 '^C\x03' 还会把字面量 ^C 打进命令行。
+        if (terminalsWithRunningCommand.get(RunTerminal)) {
+            RunTerminal.sendText('\x03', false);
+            // 留出一点时间让 Ctrl+C 生效，避免后续命令被正在退出的程序读走
+            await new Promise((resolve) => setTimeout(resolve, 150));
+        }
         RunTerminal.sendText(cdCommand);
-
         RunTerminal.sendText(runCommand);
 
     // 2. 外部终端运行
@@ -919,7 +1079,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             }
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"; echo`;
         } else {
-            return `${exeName} < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
+            return `"${exeName}" < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
         }
     } else if (opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
@@ -949,7 +1109,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             }
             return `"${executablePath}" "${exeName}"; echo`;
         } else {
-            return `${exeName}; echo`;
+            return `"${exeName}"; echo`;
         }
     }
 }
@@ -965,14 +1125,14 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
-            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath);
+            const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result) return null;
             // macOS 下通常不需要 .exe 后缀，且路径处理逻辑与 Linux 类似
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         } else {
             const ModuleName = 'ChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
-            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath);
+            const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result) return null;
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         }
@@ -980,24 +1140,24 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
-            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
             return `"${executablePath}" "${exeName}" "${opt.inputFile}" "${opt.outputFile}"; echo`;
         } else {
             // macOS 也是类 Unix 系统，标准重定向符号与 Linux 一致
-            return `${exeName} < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
+            return `"${exeName}" < "${opt.inputFile}" > "${opt.outputFile}"; echo`;
         }
     } else if (opt.useUnFileRedirect) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfoUnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
-            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
             return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         } else {
             const ModuleName = 'UnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
-            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
             return `"${executablePath}" "${exeName}" "${opt.unFileInputFile}" "${opt.unFileOutputFile}"; echo`;
         }
@@ -1005,11 +1165,11 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
         if (opt.UseConsoleInfo) {
             const ModuleName = 'ConsoleInfo';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
-            const result = await CompileModule(path.join(baseDir, 'macos', `${ModuleName}.cpp`), ModuleName, executablePath, '');
+            const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
             return `"${executablePath}" "${exeName}"; echo`;
         } else {
-            return `${exeName}; echo`;
+            return `"${exeName}"; echo`;
         }
     }
 }
@@ -1031,6 +1191,8 @@ class CppCompilerSidebarProvider {
         this._context = context;
         // 记录“非本地 C++ 文件”中，哪些文档启用了临时文件编译
         this._nonLocalTempMap = new Map(); // docKey -> { tempCppPath, tempDir }
+        this._configChangeDisposable = null;
+        this._editorChangeDisposable = null;
     }
 
     updateButtonStates() {
@@ -1089,12 +1251,20 @@ class CppCompilerSidebarProvider {
             }
         }
 
-        // 监听活动编辑器变化
-        const editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor(() => {
+        // 监听活动编辑器变化（视图重建时先释放旧监听，避免重复累积）
+        if (this._editorChangeDisposable) this._editorChangeDisposable.dispose();
+        this._editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor(() => {
             this.updateButtonStates();
             this.updateWebviewContent();
         });
-        this._context.subscriptions.push(editorChangeDisposable);
+        if (typeof webviewView.onDidDispose === 'function') {
+            webviewView.onDidDispose(() => {
+                if (this._editorChangeDisposable) {
+                    this._editorChangeDisposable.dispose();
+                    this._editorChangeDisposable = null;
+                }
+            });
+        }
 
         // 初始检查状态
         this.updateButtonStates();
@@ -1260,7 +1430,7 @@ class CppCompilerSidebarProvider {
 
                 case 'saveConfigToFile': {
                     try {
-                        updateCppConfigInEditor(vscode.window.activeTextEditor, data.config);
+                        await updateCppConfigInEditor(vscode.window.activeTextEditor, data.config);
                         if (data.filePath && data.config) {
                             Object.keys(data.config).forEach(key => {
                                 setFileConfig(data.filePath, key, data.config[key]);
@@ -1339,12 +1509,21 @@ class CppCompilerSidebarProvider {
             }
         });
 
-        // 监听配置变化，更新UI
-        vscode.workspace.onDidChangeConfiguration(e => {
+        // 监听配置变化，更新UI（之前的 disposable 没有登记，视图重建后监听会重复累积）
+        if (this._configChangeDisposable) this._configChangeDisposable.dispose();
+        this._configChangeDisposable = vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('dream-cpp-compiler')) {
                 this.updateWebviewContent();
             }
         });
+        if (typeof webviewView.onDidDispose === 'function') {
+            webviewView.onDidDispose(() => {
+                if (this._configChangeDisposable) {
+                    this._configChangeDisposable.dispose();
+                    this._configChangeDisposable = null;
+                }
+            });
+        }
     }
 
     updateWebviewContent(filePath) {
@@ -1392,7 +1571,7 @@ class CppCompilerSidebarProvider {
         let WorkDir = '';
 
         if (filePath) {
-            baseName = path.basename(filePath, ".cpp");
+            baseName = getBaseName(filePath);
             inputFile = getFileConfig(filePath, 'inputFile');
             outputFile = getFileConfig(filePath, 'outputFile');
             unFileInputFile = getFileConfig(filePath, 'unFileInputFile');
@@ -2699,6 +2878,16 @@ function activate(context) {
     // 清理超出限制的临时代码目录
     cleanupTempCodeRoot();
 
+    // 跟踪终端里正在运行的命令，避免向空闲终端发送 Ctrl+C
+    trackTerminalShellExecutions(context);
+
+    // 文件保存后让文件头配置缓存失效，手改注释无需重载窗口即可生效
+    context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((document) => {
+        if (document && document.uri && document.uri.scheme === 'file') {
+            invalidateFileConfig(document.uri.fsPath);
+        }
+    }));
+
     // 注册侧边栏提供者
     const sidebarProvider = new CppCompilerSidebarProvider(context);
     const updateDebuggerAvailability = () => {
@@ -2781,7 +2970,11 @@ function activate(context) {
     return { apiVersion: 1, compileForDebug };
 }
 
-function deactivate() { debugBuildCache.dispose(); }
+function deactivate() {
+    debugBuildCache.dispose();
+    compileOutput.dispose();
+    commandOutput.dispose();
+}
 
 module.exports = {
     activate,
