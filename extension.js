@@ -143,14 +143,43 @@ function getTempCodeRoot() {
     return path.join(os.tmpdir(), 'dream-cpp-compiler', 'tmpcode');
 }
 
+// 判断目录是否位于本扩展的临时代码根目录之下。
+// 删除前必须过这道检查：侧边栏取消勾选时曾把用户的工作目录当成临时目录删掉。
+function isTempCodeDir(dirPath) {
+    if (!dirPath) return false;
+    try {
+        const root = path.resolve(getTempCodeRoot());
+        const target = path.resolve(String(dirPath));
+        const rel = path.relative(root, target);
+        return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+    } catch (e) {
+        return false;
+    }
+}
+
 function cleanupTempCodeRoot() {
     const tmpRoot = getTempCodeRoot();
-    const maxTempCodes = getConfig('maxTempCodes') || 20;
+    let maxTempCodes = Number(getConfig('maxTempCodes'));
+    if (!Number.isFinite(maxTempCodes) || maxTempCodes < 1) maxTempCodes = 20;
     try {
         const entries = fs.readdirSync(tmpRoot, { withFileTypes: true });
-        const subDirs = entries.filter(e => e.isDirectory());
-        if (subDirs.length > maxTempCodes) {
-            fs.rmSync(tmpRoot, { recursive: true, force: true });
+        const dirs = entries.filter(e => e.isDirectory()).map(e => {
+            // 目录名形如 `${stamp}-${rand}`，优先按时间戳排序，取不到时退回 mtime
+            const stamp = parseInt(String(e.name).split('-')[0], 10);
+            let mtime = 0;
+            try { mtime = fs.statSync(path.join(tmpRoot, e.name)).mtimeMs; } catch (_) { }
+            return { name: e.name, order: Number.isFinite(stamp) && stamp > 0 ? stamp : mtime };
+        });
+        if (dirs.length <= maxTempCodes) return;
+
+        // 只删最旧的若干个。原来是整棵树清空，会连带删掉其他窗口正在使用的目录，
+        // 以及某个还在运行的程序所在的目录。
+        dirs.sort((a, b) => a.order - b.order);
+        const excess = dirs.length - maxTempCodes;
+        for (let i = 0; i < excess; i++) {
+            const target = path.join(tmpRoot, dirs[i].name);
+            if (!isTempCodeDir(target)) continue;
+            try { fs.rmSync(target, { recursive: true, force: true }); } catch (_) { }
         }
     } catch (e) {
 
@@ -286,6 +315,71 @@ function needsRecompile(filePath, signature) {
     }
 }
 
+// 文件头配置只解析注释行里的 `key: value`。
+// 之前不分注释/代码，一律按“冒号前最后一个单词”匹配，于是
+// printf("workdir: /tmp") 这类普通语句也会劫持配置，保存设置时还会被就地改写。
+// 这里先找出注释片段（// 行、/* */ 行、块注释续行），再在片段内取 key/value。
+function headerCommentSpans(lines, limit) {
+    const spans = [];
+    const max = Math.min(lines.length, typeof limit === 'number' ? limit : lines.length);
+    let inBlock = false;
+    for (let i = 0; i < max; i++) {
+        const line = String(lines[i] || '');
+        if (inBlock) {
+            const close = line.indexOf('*/');
+            spans.push({ lineIndex: i, bodyStart: 0, bodyEnd: close === -1 ? line.length : close });
+            if (close !== -1) inBlock = false;
+            continue;
+        }
+        const m = /^[ \t]*(\/\/|\/\*)/.exec(line);
+        if (!m) continue;
+        const bodyStart = m[0].length;
+        if (m[1] === '//') {
+            spans.push({ lineIndex: i, bodyStart, bodyEnd: line.length });
+        } else {
+            const close = line.indexOf('*/', bodyStart);
+            spans.push({ lineIndex: i, bodyStart, bodyEnd: close === -1 ? line.length : close });
+            if (close === -1) inBlock = true;
+        }
+    }
+    return spans;
+}
+
+// 从注释片段里取出 { key, colonIndex, valueStart, valueEnd }；不是 `key: value` 形态时返回 null。
+// valueEnd 指向去掉尾部空白后的值末尾，替换时可以保留行尾的 */ 与缩进。
+function headerKeyValue(lineText, span) {
+    const line = String(lineText || '');
+    const body = line.slice(span.bodyStart, span.bodyEnd);
+    const pos = body.indexOf(':');
+    if (pos === -1) return null;
+
+    const isLetter = (c) => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+    let end = -1;
+    for (let j = pos - 1; j >= 0; --j) {
+        if (isLetter(body.charCodeAt(j))) { end = j; break; }
+    }
+    if (end === -1) return null;
+
+    let start = end;
+    while (start >= 0 && isLetter(body.charCodeAt(start))) --start;
+
+    // key 前面紧贴数字或下划线时不算（例如 v2workdir / my_workdir），避免把标识符尾巴当成 key
+    if (start >= 0 && /[0-9_]/.test(body[start])) return null;
+
+    let valueStart = pos + 1;
+    while (valueStart < body.length && (body[valueStart] === ' ' || body[valueStart] === '\t')) valueStart++;
+
+    const key = body.slice(start + 1, end + 1);
+    const value = body.slice(valueStart).replace(/\s+$/, '');
+    return {
+        key,
+        value,
+        colonIndex: span.bodyStart + pos,
+        valueStart: span.bodyStart + valueStart,
+        valueEnd: span.bodyStart + valueStart + value.length
+    };
+}
+
 function parseFileHeaderConfig(filePath) {
     const baseName = getBaseName(filePath);
     let config = {
@@ -307,7 +401,7 @@ function parseFileHeaderConfig(filePath) {
         outputPath: (getConfig('outputPath') || '<cppDir>/<baseName>'),
         WorkDir: (getConfig('WorkDirDefaultValue') || '<cppDir>'),
         tempCppPath: '',
-        staticOption: getConfig('staticOption') || '-static',
+        staticOption: getStaticOption(),
         compileCommand: getConfig('compileCommand') || '"<cPath>" "<cppPath>" <option> -o "<outPath>"'
     };
     try {
@@ -319,34 +413,14 @@ function parseFileHeaderConfig(filePath) {
         const content = fs.readFileSync(filePath, 'utf8');
         const lines = content.split('\n');
 
-        // 只检查前50行，避免读取整个大文件
-        for (let i = 0; i < Math.min(lines.length, 50); i++) {
-            const line = lines[i].trim();
-            const pos = line.indexOf(':');
-            if(pos === -1) continue;
-            let end = -1;
-            for (let j = pos - 1; j >= 0; --j) {
-                const c = line.charCodeAt(j);
-                if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
-                    end = j;
-                    break;
-                }
-            }
-            if (end === -1) continue;
+        // 只检查前50行，避免读取整个大文件。只认注释行里的 `key: value`：
+        // 普通代码行（例如 printf("workdir: /tmp")）同样含 "word:"，宽松匹配会把配置劫持走。
+        for (const span of headerCommentSpans(lines, 50)) {
+            const entry = headerKeyValue(lines[span.lineIndex], span);
+            if (!entry) continue;
 
-            let start = end;
-            while (start >= 0) {
-                const c = line.charCodeAt(start);
-                if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) break;
-                --start;
-            }
-
-            let key = line.slice(start + 1, end + 1);
-
-            let j = pos + 1;
-            while (j < line.length && line[j] === ' ') j++;
-
-            let value = line.slice(j);
+            const key = entry.key;
+            const value = entry.value;
 
             switch (key.toLowerCase()) {
                 case 'compileoptions':
@@ -421,58 +495,29 @@ async function updateCppConfigInEditor(editor, newConfig) {
         const configKeys = Object.keys(newConfig).filter(k => FILE_HEADER_KEYS.has(k.toLowerCase()));
 
         // 1. 扫描并修改现有行
+        // 只处理注释行：否则 printf("workdir: /tmp") 这类代码会被当成配置行改写，把源码改坏。
+        const lineTexts = [];
         for (let i = 0; i < scanLimit; i++) {
-            const lineObj = document.lineAt(i);
-            const lineText = lineObj.text;
-            const trimmedLine = lineText.trim();
+            lineTexts.push(document.lineAt(i).text);
+        }
 
-            // --- 你的原始解析逻辑 ---
-            const pos = trimmedLine.indexOf(':');
-            if (pos === -1) continue;
-
-            let end = -1;
-            for (let j = pos - 1; j >= 0; --j) {
-                const c = trimmedLine.charCodeAt(j);
-                if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
-                    end = j;
-                    break;
-                }
-            }
-            if (end === -1) continue;
-
-            let start = end;
-            while (start >= 0) {
-                const c = trimmedLine.charCodeAt(start);
-                if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) break;
-                --start;
-            }
-
-            const foundKeyRaw = trimmedLine.slice(start + 1, end + 1);
-            const foundKeyLower = foundKeyRaw.toLowerCase();
-            // --- 解析结束 ---
+        for (const span of headerCommentSpans(lineTexts, scanLimit)) {
+            const entry = headerKeyValue(lineTexts[span.lineIndex], span);
+            if (!entry) continue;
 
             // 查找 newConfig 中是否有对应的 Key
-            const matchingConfigKey = configKeys.find(k => k.toLowerCase() === foundKeyLower);
+            const matchingConfigKey = configKeys.find(k => k.toLowerCase() === entry.key.toLowerCase());
+            if (!matchingConfigKey) continue;
 
-            if (matchingConfigKey) {
-                const newValue = newConfig[matchingConfigKey];
+            const newValue = newConfig[matchingConfigKey];
 
-                // 找到冒号在 *原始行* 中的位置
-                const colonIndex = lineText.indexOf(':');
+            // 从冒号后到值结尾替换：保留缩进、注释符号和 Key，
+            // 块注释的 */ 也不会被吃掉（原来是替换到行尾）。
+            const startPos = new vscode.Position(span.lineIndex, entry.colonIndex + 1);
+            const endPos = new vscode.Position(span.lineIndex, entry.valueEnd);
+            editBuilder.replace(new vscode.Range(startPos, endPos), ` ${newValue}`);
 
-                if (colonIndex !== -1) {
-                    // 计算要替换的范围：从冒号后一个字符开始，到行尾
-                    // 这样可以保留缩进、注释符号和 Key
-                    const startPos = new vscode.Position(i, colonIndex + 1);
-                    const endPos = lineObj.range.end;
-                    const range = new vscode.Range(startPos, endPos);
-
-                    // 执行替换：替换为 " newValue" (注意加个空格)
-                    editBuilder.replace(range, ` ${newValue}`);
-
-                    processedKeys.add(matchingConfigKey);
-                }
-            }
+            processedKeys.add(matchingConfigKey);
         }
 
         // 2. 处理不存在的新配置 -> 插入到顶部
@@ -647,6 +692,13 @@ async function CompileModule(filePath, ModuleName, executablePath) {
     });
 }
 
+// 静态编译选项：允许用户把它设成空字符串（表示不加任何静态编译参数），
+// 所以不能用 `|| '-static'` 兜底，否则空值会被吃掉。
+function getStaticOption() {
+    const value = getConfig('staticOption');
+    return value === undefined || value === null ? '-static' : String(value);
+}
+
 // 默认编译选项：-Wl,--stack 是 Windows(MinGW) 专用，Linux/macOS 的 ld 会直接报错
 function getDefaultCompileOptions() {
     if (process.platform === 'win32') {
@@ -680,8 +732,9 @@ async function OnlyCompile(askUser, filePath, sourcePathOverride) {
 
     const compilerPath = getConfig('compilerPath') || 'g++';
     const iSstatic = getFileConfig(filePath, 'useStaticLinking');
+    const staticFlag = iSstatic ? String(getFileConfig(filePath, 'staticOption') ?? '-static') : '';
     const compileOptions = sanitizeCompileOptions(getFileConfig(filePath, 'compileOptions')
-        + (iSstatic ? ` ${getFileConfig(filePath, 'staticOption') || '-static'}` : ''));
+        + (staticFlag ? ` ${staticFlag}` : ''));
     const executablePath = GetExePath(filePath);
 
     const compileCommandTemplate = getFileConfig(filePath, 'compileCommand') || '"<cPath>" "<cppPath>" <option> -o "<outPath>"';
@@ -1115,7 +1168,10 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
 }
 
 async function buildTerminalCommandLinux(executablePath, cdCommand, runCommand) {
-    return `gnome-terminal --title="${executablePath}" -- bash -c "${cdCommand}; ${runCommand}; read -s -n1 -p '按任意键退出...'"`;
+    // cdCommand / runCommand 里已经用双引号包了路径，这里不能再套一层双引号：
+    // 外层 sh 会在第一个内层引号处截断，路径含空格时程序根本不会启动。
+    const script = `${cdCommand}; ${runCommand}; read -s -n1 -p '按任意键退出...'`;
+    return `gnome-terminal --title=${shellEscapePosix(executablePath)} -- bash -c ${shellEscapePosix(script)}`;
 }
 
 // ---------------- macOS (Darwin) 构建命令 ----------------
@@ -1456,11 +1512,17 @@ class CppCompilerSidebarProvider {
                         }
                         const entry = docKey ? this._nonLocalTempMap.get(docKey) : null;
                         const tempDirFromConfig = data.filePath ? getFileConfig(data.filePath, 'tempDir') : '';
-                        const dirToRemove = entry?.tempDir || tempDirFromConfig || data.tempDir;
+                        // 只删本扩展自己的临时代码目录。原来还会兜底到 data.tempDir
+                        // （webview 传来的工作目录），一旦没有记录就会把用户的工程目录 rm -rf 掉。
+                        const dirToRemove = entry?.tempDir || tempDirFromConfig || '';
+                        const removable = isTempCodeDir(dirToRemove);
 
-                        ShowInfo(`用户在侧边栏取消了临时文件 ${data.filePath} 以临时文件编译运行设置，即将删除文件夹 ${dirToRemove}`);
+                        ShowInfo(`用户在侧边栏取消了 ${data.filePath} 的以临时文件编译运行设置` +
+                            (removable
+                                ? `，即将删除临时目录 ${dirToRemove}`
+                                : (dirToRemove ? `，目录 ${dirToRemove} 不在扩展临时目录内，已跳过删除` : '')));
 
-                        if (dirToRemove) {
+                        if (removable) {
                             try {
                                 fs.rmSync(dirToRemove, { recursive: true, force: true });
                             } catch (e) {
@@ -1569,6 +1631,7 @@ class CppCompilerSidebarProvider {
         let workdir = '';
         let tmpDir = '';
         let WorkDir = '';
+        let useTempFile = false;
 
         if (filePath) {
             baseName = getBaseName(filePath);
@@ -1589,6 +1652,7 @@ class CppCompilerSidebarProvider {
             customVariable = getFileConfig(filePath, 'customVariable');
             outputPath = getFileConfig(filePath, 'outputPath');
             WorkDir = getFileConfig(filePath, 'WorkDir') || '';
+            useTempFile = !!getFileConfig(filePath, 'useTempFile');
             cppDir = path.dirname(filePath) || '';
             workdir = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || cppDir || '';
             tmpDir = os.tmpdir();
@@ -1620,7 +1684,8 @@ class CppCompilerSidebarProvider {
             moreCommand: moreCommand,
             customVariable: customVariable,
             outputPath: outputPath,
-            WorkDir: WorkDir
+            WorkDir: WorkDir,
+            useTempFile: useTempFile
         });
 
         sidebarPanel.webview.postMessage({
@@ -2662,6 +2727,11 @@ class CppCompilerSidebarProvider {
                             updateInputWithRaw('customVariable', data.customVariable);
                             updateInputWithRaw('outputPath', data.outputPath);
                             updateInputWithRaw('WorkDir', data.WorkDir);
+
+                            // 恢复「以临时文件进行编译运行」的勾选状态。之前漏了这一项，
+                            // 切换文件后会沿用上一个文件的状态，取消勾选时就会误删目录。
+                            useTempFile = !!data.useTempFile;
+                            document.getElementById('useTempFile').checked = useTempFile;
                         }
 
                         ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(function(id) {
@@ -2732,8 +2802,7 @@ class CppCompilerSidebarProvider {
                     vscode.postMessage({
                         type: 'toggleTempFile',
                         enabled: useTempFile,
-                        filePath: filePath,
-                        tempDir: WorkDir
+                        filePath: filePath
                     });
                 });
 

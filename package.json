@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "7.4.1",
+	"version": "7.4.2",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -276,6 +276,11 @@
 					"default": "-static",
 					"description": "静态编译的编译器选项，如果使用 cl 编译器，需调整为 /MT"
 				},
+				"dream-cpp-compiler.useStaticDefaultValue": {
+					"type": "boolean",
+					"default": false,
+					"description": "默认是否启用静态编译；侧边栏「使用静态链接」可按文件覆盖。设置后仅对未写过该配置的文件生效"
+				},
 				"dream-cpp-compiler.compileCommand": {
 					"type": "string",
 					"default": "\"<cPath>\" \"<cppPath>\" <option> -o \"<outPath>\"",
@@ -293,7 +298,7 @@
 	"scripts": {
 		"lint": "eslint .",
 		"test": "npm run test:integration",
-		"test:integration": "node tests/debug-integration-tests.js && node tests/debug-button-tests.js && node tests/debug-cache-tests.js && node tests/bugfix-tests.js"
+		"test:integration": "node tests/debug-integration-tests.js && node tests/debug-button-tests.js && node tests/debug-cache-tests.js && node tests/bugfix-tests.js && node tests/audit2-tests.js"
 	},
 	"devDependencies": {
 		"@types/node": "16.x",
