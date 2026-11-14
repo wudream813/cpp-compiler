@@ -58,23 +58,55 @@ function appleScriptEscape(str) {
     return String(str).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, '\\n');
 }
 
-function parseShellTokens(cmd) {
+// 把命令模板切成 argv。必须按平台区分：
+// Windows 的反斜杠是路径分隔符（CommandLineToArgvW 语义），只有双引号成对才算转义；
+// 之前一律把 \ 当转义符，导致 "C:\mingw64\bin\g++.exe" 被切成 "C:mingw64bing++.exe"，
+// Windows 上任何绝对路径都会 ENOENT。
+function parseShellTokens(cmd, platform) {
+    const text = String(cmd == null ? '' : cmd);
+    const isWindows = (platform || process.platform) === 'win32';
     const tokens = [];
     let cur = '';
-    let inSingle = false, inDouble = false, esc = false;
-    for (let i = 0; i < cmd.length; i++) {
-        const ch = cmd[i];
-        if (esc) { cur += ch; esc = false; continue; }
-        if (ch === '\\' && !inSingle) { esc = true; continue; }
-        if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
-        if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
-        if (!inSingle && !inDouble && /\s/.test(ch)) {
-            if (cur) { tokens.push(cur); cur = ''; }
+    let started = false;
+    let inSingle = false, inDouble = false;
+    const flush = () => { if (started) { tokens.push(cur); cur = ''; started = false; } };
+
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+
+        if (isWindows) {
+            if (ch === '"') {
+                if (inDouble && text[i + 1] === '"') { cur += '"'; i++; continue; }
+                inDouble = !inDouble;
+                started = true;
+                continue;
+            }
+            if (!inDouble && /\s/.test(ch)) { flush(); continue; }
+            cur += ch;
+            started = true;
             continue;
         }
-        cur += ch;
+
+        if (inSingle) {
+            if (ch === "'") inSingle = false; else cur += ch;
+            started = true;
+            continue;
+        }
+        if (inDouble) {
+            if (ch === '\\' && i + 1 < text.length && '"\\$`\n'.includes(text[i + 1])) {
+                cur += text[++i]; started = true; continue;
+            }
+            if (ch === '"') { inDouble = false; continue; }
+            cur += ch; started = true;
+            continue;
+        }
+        if (ch === '\\' && i + 1 < text.length) { cur += text[++i]; started = true; continue; }
+        if (ch === "'") { inSingle = true; started = true; continue; }
+        if (ch === '"') { inDouble = true; started = true; continue; }
+        if (/\s/.test(ch)) { flush(); continue; }
+        cur += ch; started = true;
     }
-    if (cur) tokens.push(cur);
+    flush();
     return tokens;
 }
 
@@ -446,10 +478,45 @@ function headerKeyValue(lineText, span) {
     };
 }
 
+// 去掉注释和字符串字面量，避免注释里的 fopen、字符串里的 "ifstream" 误触发直跑模式
+function stripCommentsAndStrings(content) {
+    let out = '';
+    let i = 0;
+    const n = content.length;
+    while (i < n) {
+        const ch = content[i];
+        const next = content[i + 1];
+        if (ch === '/' && next === '/') {
+            while (i < n && content[i] !== '\n') i++;
+            continue;
+        }
+        if (ch === '/' && next === '*') {
+            i += 2;
+            while (i < n && !(content[i] === '*' && content[i + 1] === '/')) i++;
+            i += 2;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            const quote = ch;
+            i++;
+            while (i < n && content[i] !== quote) {
+                if (content[i] === '\\') i++;
+                i++;
+            }
+            i++;
+            out += '""';
+            continue;
+        }
+        out += ch;
+        i++;
+    }
+    return out;
+}
+
 function detectWorkDirDirect(filePath) {
     try {
         if (!filePath || !fs.existsSync(filePath)) return false;
-        const content = fs.readFileSync(filePath, 'utf8');
+        const content = stripCommentsAndStrings(fs.readFileSync(filePath, 'utf8'));
         const patterns = [/\bfopen\s*\(/, /\bfreopen\s*\(/, /\bifstream\b/, /\bofstream\b/, /\bfstream\b/, /\bstd\s*::\s*filesystem\b/, /#\s*include\s*<filesystem>/, /#\s*include\s*<fstream>/];
         return patterns.some(re => re.test(content));
     } catch { return false; }
@@ -545,7 +612,9 @@ function parseFileHeaderConfig(filePath) {
                     break;
             }
         }
-        if (!hasExplicitWorkDirDirect) {
+        // 优先级：文件头注释 > 全局设置 > 自动检测。
+        // 原来自动检测会无条件覆盖全局设置，导致 workDirDirectDefaultValue 永远不生效。
+        if (!hasExplicitWorkDirDirect && getConfig('workDirDirectDefaultValue') === undefined) {
             try { config.workDirDirect = detectWorkDirDirect(filePath); } catch {}
         }
     } catch (error) {
@@ -559,7 +628,8 @@ function parseFileHeaderConfig(filePath) {
 const FILE_HEADER_KEYS = new Set([
     'compileoptions', 'usestaticlinking', 'outputpath', 'compilecommand',
     'inputfile', 'outputfile', 'unfileinputfile', 'unfileoutputfile',
-    'usefileredirect', 'useunfileredirect', 'morecommand', 'customvariable', 'workdir'
+    'usefileredirect', 'useunfileredirect', 'morecommand', 'customvariable', 'workdir',
+    'workdirdirect'
 ]);
 
 async function updateCppConfigInEditor(editor, newConfig) {
@@ -733,6 +803,19 @@ async function resolveCompileSourcePath(filePath) {
     return tempCppPath || filePath;
 }
 
+// 扩展版本号，用于模块缓存指纹（读 package.json，失败时回退空串）
+let extensionVersionCache;
+function getExtensionVersion() {
+    if (extensionVersionCache !== undefined) return extensionVersionCache;
+    try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8').replace(/^\uFEFF/, ''));
+        extensionVersionCache = String(pkg.version || '');
+    } catch (err) {
+        extensionVersionCache = '';
+    }
+    return extensionVersionCache;
+}
+
 function execAsync(command) {
     return new Promise((resolve, reject) => {
         exec(command, (error) => (error ? reject(error) : resolve()));
@@ -754,9 +837,29 @@ async function CompileModule(filePath, ModuleName, executablePath) {
     const displayCmd = (args) => `${shellEscapePosix(compilerPath)} ${args.map(a => shellEscapePosix(a)).join(' ')}`;
     ShowInfos([`开始编译模块：${ModuleName}`, `模块位于 ${filePath}`, `输出至 ${executablePath}`, `编译命令：${displayCmd(commands[0])}\n`]);
 
-    if (fs.existsSync(executablePath)) {
+    // 缓存是否可用必须看“helper 源码内容 + 扩展版本”，不能只看 exe 是否存在：
+    // 旧版本编译出来的模块留在临时目录里会被直接复用，而 7.4.5 起 helper 的参数位数变了，
+    // 旧二进制只会打印一行“用法：…”然后返回 -1，表现为反文件读写彻底失效。
+    const stampPath = `${executablePath}.srchash`;
+    let sourceStamp = '';
+    try {
+        sourceStamp = md5(fs.readFileSync(filePath).toString('base64')) + '|' + getExtensionVersion();
+    } catch (err) {
+        sourceStamp = '';
+    }
+    let cachedStamp = '';
+    try { cachedStamp = fs.readFileSync(stampPath, 'utf8').trim(); } catch (err) { cachedStamp = ''; }
+
+    if (sourceStamp && fs.existsSync(executablePath) && cachedStamp === sourceStamp) {
         ShowInfo(`模块：${ModuleName} 曾被编译，无需再次编译`);
         return 1;
+    }
+    // 源码/版本变了或没有指纹（旧版本留下的二进制）：删掉重新编译
+    try {
+        if (fs.existsSync(executablePath)) fs.unlinkSync(executablePath);
+        if (fs.existsSync(stampPath)) fs.unlinkSync(stampPath);
+    } catch (err) {
+        ShowWarn(`清理旧模块 ${ModuleName} 失败：${err.message}`);
     }
 
     return await vscode.window.withProgress({location: vscode.ProgressLocation.Notification, title: `模块 ${ModuleName} 正在编译...`}, async () => {
@@ -765,6 +868,11 @@ async function CompileModule(filePath, ModuleName, executablePath) {
             try {
                 await spawnAsync(compilerPath, commands[i], { cwd: path.dirname(filePath) });
                 ShowInfo(`模块：${ModuleName} 编译成功`);
+                try {
+                    if (sourceStamp) fs.writeFileSync(stampPath, sourceStamp, 'utf8');
+                } catch (err) {
+                    ShowWarn(`写入模块 ${ModuleName} 指纹失败：${err.message}`);
+                }
                 return 1;
             } catch (error) {
                 lastError = error;
@@ -3099,6 +3207,11 @@ class CppCompilerSidebarProvider {
                     configToSave['useFileRedirect'] = document.getElementById('useFileRedirect').checked.toString();
                     configToSave['useUnFileRedirect'] = document.getElementById('useUnFileRedirect').checked.toString();
                     configToSave['useConsoleInfo'] = document.getElementById('useConsoleInfo').checked.toString();
+                    // workDirDirect 也是文件头可覆盖的配置，漏了它会导致侧边栏改动无法持久化
+                    const workDirDirectEl = document.getElementById('workDirDirect');
+                    if (workDirDirectEl) {
+                        configToSave['workDirDirect'] = workDirDirectEl.checked.toString();
+                    }
                     configToSave['workDirDirect'] = document.getElementById('workDirDirect').checked.toString();
 
                     // 2. 获取编译选项 (直接取值)

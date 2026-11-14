@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <copyfile.h> // macOS 专用文件复制库
 #include <sys/wait.h>
 #include <limits.h>
@@ -66,7 +67,38 @@ void copyFileContent(const char* src, const char* dst) {
     close(in); close(out);
 }
 
+// 镜像到临时目录的规模上限：WorkDir 里若有 .git / node_modules / 大素材，
+// 每次运行全量拷贝会非常慢，超限时停止拷贝并提示一次。
+#define DREAM_MIRROR_MAX_ENTRIES 20000
+#define DREAM_MIRROR_MAX_BYTES (256LL * 1024 * 1024)
+static int g_mirrorEntries = 0;
+static long long g_mirrorBytes = 0;
+static bool g_mirrorWarned = false;
+
+static bool isHugeVcsDir(const char* name) {
+    return !strcmp(name, ".git") || !strcmp(name, ".hg") || !strcmp(name, ".svn") || !strcmp(name, "node_modules");
+}
+
+static bool mirrorBudgetExceeded() {
+    if (g_mirrorEntries <= DREAM_MIRROR_MAX_ENTRIES && g_mirrorBytes <= DREAM_MIRROR_MAX_BYTES) return false;
+    if (!g_mirrorWarned) {
+        g_mirrorWarned = true;
+        printf("提示：工作目录镜像超过上限（20000 项 / 256 MB），剩余文件未拷贝；需要完整目录请打开「工作目录直跑」。\n");
+    }
+    return true;
+}
+
+// 相对路径按工作目录拼接；本身就是绝对路径则原样使用（否则会拼成 workDir/home/xxx 这种鬼路径）
+static void joinWorkDir(char* out, size_t sz, const char* workDir, const char* rel) {
+    if (rel && rel[0] == '/') {
+        snprintf(out, sz, "%s", rel);
+    } else {
+        snprintf(out, sz, "%s/%s", (workDir && *workDir) ? workDir : ".", rel ? rel : "");
+    }
+}
+
 void mirrorWorkDirRecursive(const char* workDir, const char* tempDir, const char* ex1, const char* ex2, const char* ex3, const char* ex4) {
+    if (mirrorBudgetExceeded()) return;
     DIR* d = opendir(workDir);
     if (!d) return;
     struct dirent* e;
@@ -88,10 +120,14 @@ void mirrorWorkDirRecursive(const char* workDir, const char* tempDir, const char
             continue;
         }
         if (S_ISDIR(st.st_mode)) {
+            if (isHugeVcsDir(e->d_name)) continue;
             mkdir(dst, 0755);
             mirrorWorkDirRecursive(src, dst, ex1, ex2, ex3, ex4);
         } else if (S_ISREG(st.st_mode)) {
+            if (mirrorBudgetExceeded()) continue;
             copyFileContent(src, dst);
+            g_mirrorEntries++;
+            g_mirrorBytes += (long long)st.st_size;
         }
     }
     closedir(d);
@@ -135,11 +171,46 @@ bool fileExistsPosix(const char* path) {
     return stat(path, &st)==0;
 }
 
+#include <signal.h>
+
+// ---- 直跑模式会临时把用户的输入/输出文件改名成 <file>.dream_bak_<pid>，
+// ---- 一旦被 Ctrl+C / 崩溃打断就来不及还原，用户数据会从原路径“消失”。
+// ---- 这里登记所有备份，并在异常退出前还原。
+#define DREAM_MAX_BACKUPS 4
+static char g_bakOrig[DREAM_MAX_BACKUPS][PATH_MAX];
+static char g_bakNew[DREAM_MAX_BACKUPS][PATH_MAX];
+static int g_bakCount = 0;
+
+static void rememberBackup(const char* orig, const char* bak) {
+    if (g_bakCount >= DREAM_MAX_BACKUPS) return;
+    snprintf(g_bakOrig[g_bakCount], PATH_MAX, "%s", orig);
+    snprintf(g_bakNew[g_bakCount], PATH_MAX, "%s", bak);
+    g_bakCount++;
+}
+
+static void restoreBackupsOnExit() {
+    for (int i = 0; i < g_bakCount; i++) {
+        if (!g_bakOrig[i][0]) continue;
+        if (access(g_bakNew[i], F_OK) == 0) {   // 备份还在 → 正常流程没还原
+            unlink(g_bakOrig[i]);
+            rename(g_bakNew[i], g_bakOrig[i]);
+        }
+        g_bakOrig[i][0] = 0;
+    }
+}
+
+static void onFatalSignal(int sig) {
+    restoreBackupsOnExit();
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 void backupFilePosix(const char* path, char* backupPath, size_t sz) {
     backupPath[0]=0;
     if (!fileExistsPosix(path)) return;
     snprintf(backupPath, sz, "%s.dream_bak_%d", path, (int)getpid());
     rename(path, backupPath);
+    rememberBackup(path, backupPath);
 }
 
 void restoreFilePosix(const char* path, const char* backupPath) {
@@ -266,6 +337,10 @@ int runExe(const char* exePath, const char* workingDir) {
 }
 
 int main(int argc, char* argv[]) {
+    atexit(restoreBackupsOnExit);
+    signal(SIGINT, onFatalSignal);
+    signal(SIGTERM, onFatalSignal);
+    signal(SIGHUP, onFatalSignal);
     const char* workDir = "";
     bool workDirDirect = false;
     if (argc == 8) { workDir = argv[6]; workDirDirect = argv[7][0]=='1'; }
@@ -285,7 +360,7 @@ int main(int argc, char* argv[]) {
         char directInput[PATH_MAX] = {0}, directOutput[PATH_MAX] = {0};
         char backupInput[PATH_MAX] = {0}, backupOutput[PATH_MAX] = {0};
         if (!willInputIsCon) {
-            snprintf(directInput, sizeof(directInput), "%s/%s", workDir, argv[4]);
+            joinWorkDir(directInput, sizeof(directInput), workDir, argv[4]);
             ensureParentDirPosix(directInput);
             backupFilePosix(directInput, backupInput, sizeof(backupInput));
             if (progInputIsCon) {
@@ -295,7 +370,7 @@ int main(int argc, char* argv[]) {
                 }
             } else {
                 backupFilePosix(argv[2], nullptr, 0); // not needed
-                if (!copyFileLinux(argv[2], directInput)) {
+                if (!copyFileMac(argv[2], directInput)) {
                     if (backupInput[0]) rename(backupInput, directInput);
                     printf("无法复制输入文件到工作目录\n");
                     return -1;
@@ -303,7 +378,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!willOutputIsCon) {
-            snprintf(directOutput, sizeof(directOutput), "%s/%s", workDir, argv[5]);
+            joinWorkDir(directOutput, sizeof(directOutput), workDir, argv[5]);
             ensureParentDirPosix(directOutput);
             backupFilePosix(directOutput, backupOutput, sizeof(backupOutput));
         }
@@ -314,7 +389,7 @@ int main(int argc, char* argv[]) {
                 unlink(directOutput);
                 if (backupOutput[0]) rename(backupOutput, directOutput);
             } else {
-                copyFileLinux(directOutput, argv[3]);
+                copyFileMac(directOutput, argv[3]);
                 unlink(directOutput);
                 if (backupOutput[0]) rename(backupOutput, directOutput);
             }

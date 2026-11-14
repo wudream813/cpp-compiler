@@ -1,0 +1,13 @@
+# 统一行尾：曾出现整文件 CRLF<->LF 翻转，导致 diff 里全是"整文件重写"
+* text=auto eol=lf
+
+# 二进制
+*.png binary
+*.ico binary
+*.vsix binary
+*.exe binary
+
+# 历史上就是 CRLF 的文件，保持原样，避免提交时整文件重写
+readme.md -text
+tools/linux/ConsoleInfo.cpp -text
+tools/windows/ConsoleInfo.cpp -text

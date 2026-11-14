@@ -48,8 +48,38 @@ bool shouldExcludeWin(const char* name, const char* exclude1, const char* exclud
     return false;
 }
 
+// Size cap for mirroring the work dir into the temp dir (see the linux version).
+#define DREAM_MIRROR_MAX_ENTRIES 20000
+#define DREAM_MIRROR_MAX_BYTES (256LL * 1024 * 1024)
+static int g_mirrorEntries = 0;
+static long long g_mirrorBytes = 0;
+static bool g_mirrorWarned = false;
+
+static bool isHugeVcsDirWin(const char* name) {
+    return _stricmp(name, ".git") == 0 || _stricmp(name, ".hg") == 0 || _stricmp(name, ".svn") == 0 || _stricmp(name, "node_modules") == 0;
+}
+
+static bool mirrorBudgetExceededWin() {
+    if (g_mirrorEntries <= DREAM_MIRROR_MAX_ENTRIES && g_mirrorBytes <= DREAM_MIRROR_MAX_BYTES) return false;
+    if (!g_mirrorWarned) {
+        g_mirrorWarned = true;
+        printf("Note: work dir mirror exceeded the limit (20000 entries / 256 MB); remaining files skipped. Enable direct work dir mode for the full folder.\n");
+    }
+    return true;
+}
+
+// Join relative paths with workDir; keep absolute paths (\\ or X:) untouched.
+static void joinWorkDir(char* out, size_t sz, const char* workDir, const char* rel) {
+    if (rel && (rel[0] == '\\' || (rel[0] && rel[1] == ':'))) {
+        snprintf(out, sz, "%s", rel);
+    } else {
+        snprintf(out, sz, "%s\\%s", (workDir && *workDir) ? workDir : ".", rel ? rel : "");
+    }
+}
+
 void mirrorWorkDirWin(const char* workDir, const char* tempDir, const char* ex1, const char* ex2, const char* ex3, const char* ex4) {
     if (!workDir || !*workDir) return;
+    if (mirrorBudgetExceededWin()) return;
     DWORD attr = GetFileAttributesA(workDir);
     if (attr == INVALID_FILE_ATTRIBUTES || !(attr & FILE_ATTRIBUTE_DIRECTORY)) return;
     char search[MAX_PATH];
@@ -64,10 +94,14 @@ void mirrorWorkDirWin(const char* workDir, const char* tempDir, const char* ex1,
         snprintf(src, sizeof(src), "%s\\%s", workDir, ffd.cFileName);
         snprintf(dst, sizeof(dst), "%s\\%s", tempDir, ffd.cFileName);
         if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            if (isHugeVcsDirWin(ffd.cFileName)) continue;
             CreateDirectoryA(dst, NULL);
             mirrorWorkDirWin(src, dst, ex1, ex2, ex3, ex4);
         } else {
+            if (mirrorBudgetExceededWin()) continue;
             CopyFileA(src, dst, FALSE);
+            g_mirrorEntries++;
+            g_mirrorBytes += ((long long)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
         }
     } while (FindNextFileA(hFind, &ffd));
     FindClose(hFind);
@@ -106,11 +140,43 @@ bool fileExistsWinDirect(const char* path) {
     return attr != INVALID_FILE_ATTRIBUTES;
 }
 
+// Direct-run mode renames the user file to <file>.dream_bak_<pid> first;
+// if we are killed by Ctrl+C we must put it back, or the data disappears.
+#define DREAM_MAX_BACKUPS 4
+static char g_bakOrig[DREAM_MAX_BACKUPS][MAX_PATH];
+static char g_bakNew[DREAM_MAX_BACKUPS][MAX_PATH];
+static int g_bakCount = 0;
+
+static void rememberBackup(const char* orig, const char* bak) {
+    if (g_bakCount >= DREAM_MAX_BACKUPS) return;
+    snprintf(g_bakOrig[g_bakCount], MAX_PATH, "%s", orig);
+    snprintf(g_bakNew[g_bakCount], MAX_PATH, "%s", bak);
+    g_bakCount++;
+}
+
+static void restoreBackupsOnExit() {
+    for (int i = 0; i < g_bakCount; i++) {
+        if (!g_bakOrig[i][0]) continue;
+        if (GetFileAttributesA(g_bakNew[i]) != INVALID_FILE_ATTRIBUTES) {
+            DeleteFileA(g_bakOrig[i]);
+            MoveFileA(g_bakNew[i], g_bakOrig[i]);
+        }
+        g_bakOrig[i][0] = 0;
+    }
+}
+
+static BOOL WINAPI onConsoleCtrl(DWORD ctrlType) {
+    (void)ctrlType;
+    restoreBackupsOnExit();
+    return FALSE;   // 交回默认处理，进程照常终止
+}
+
 void backupFileWinDirect(const char* path, char* backupPath, size_t sz) {
     backupPath[0]=0;
     if (!fileExistsWinDirect(path)) return;
     snprintf(backupPath, sz, "%s.dream_bak_%d", path, (int)GetCurrentProcessId());
     MoveFileA(path, backupPath);
+    rememberBackup(path, backupPath);
 }
 
 void restoreFileWinDirect(const char* path, const char* backupPath) {
@@ -269,6 +335,8 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 }
 
 int main(int argc, char* argv[]) {
+    atexit(restoreBackupsOnExit);
+    SetConsoleCtrlHandler(onConsoleCtrl, TRUE);
     const char* workDir = "";
     bool workDirDirect = false;
     if (argc == 6) { workDir = argv[4]; workDirDirect = argv[5][0]=='1'; }
@@ -284,7 +352,7 @@ int main(int argc, char* argv[]) {
         char directInput[MAX_PATH] = {0}, directOutput[MAX_PATH] = {0};
         char backupInput[MAX_PATH] = {0}, backupOutput[MAX_PATH] = {0};
         if (!inputIsCon) {
-            snprintf(directInput, sizeof(directInput), "%s\\%s", workDir, argv[2]);
+            joinWorkDir(directInput, sizeof(directInput), workDir, argv[2]);
             ensureParentDirWin(directInput);
             backupFileWinDirect(directInput, backupInput, sizeof(backupInput));
             if (!writeStdinToFile(directInput)) {
@@ -293,7 +361,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!outputIsCon) {
-            snprintf(directOutput, sizeof(directOutput), "%s\\%s", workDir, argv[3]);
+            joinWorkDir(directOutput, sizeof(directOutput), workDir, argv[3]);
             ensureParentDirWin(directOutput);
             backupFileWinDirect(directOutput, backupOutput, sizeof(backupOutput));
         }

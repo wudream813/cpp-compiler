@@ -1,3 +1,20 @@
+## 7.4.7
+
+- 修复 Windows 下 `parseShellTokens` 把 `\` 当转义符：`compileCommand` / `compilerPath` / `staticOption` 里含反斜杠的路径会被吞成 `C:Usersmeg++.exe`，`CompileModule` 与 `OnlyCompile` 因此编译失败。现在按平台分词，Windows 只认 `""` 与双引号，反斜杠原样保留；POSIX 行为不变。
+- 修复全局 `workDirDirectDefaultValue` 被自动探测覆盖：原先只判断"文件头里有没有写 `workDirDirect`"，全局设置被忽略；现在用户显式设过（true 或 false）就以全局为准，自动探测只在完全没设置时生效。
+- 修复自动探测误判：`#include <fstream>` / `ifstream` 出现在注释或字符串里时不再认为"需要直跑"。
+- 修复侧边栏勾选"工作目录直跑"重载后丢失：`FILE_HEADER_KEYS` 漏了 `workdirdirect`，保存时被过滤掉。
+- 修复升级后仍使用旧 helper 二进制：模块缓存改为按 `<exe>.srchash = md5(源码) + 扩展版本` 判定，源码或版本一变就重编；7.4.5 把 helper 参数从 4 个改成 6 个后，旧缓存只会打印一行"用法：…"然后返回 -1，表现为反文件读写彻底失效。
+- 修复 Ctrl+C 打断后用户数据从原路径消失：直跑模式会把 `WorkDir/<input|output>` 改名成 `.dream_bak_<pid>` 再写入，原先被信号打断就不还原。现在 POSIX 注册 `SIGINT`/`SIGTERM`/`SIGHUP`、Windows 注册 `SetConsoleCtrlHandler`，并在 `atexit` 兜底还原；实测 `SIGINT`/`SIGTERM` 后原文件复原、无备份文件残留（`SIGKILL` 无法捕获，仍会留下可辨识的 `.dream_bak_<pid>`）。
+- 修复 3 处 helper 根本编译不过：`tools/windows/UnFileIO.cpp` 的 `if (!outputIsCon)` 少一个右花括号；`tools/macOS/ChangeFileIO.cpp` 调用不存在的 `copyFileLinux`（应为 `copyFileMac`）；`tools/macOS/ConsoleInfoChangeFileIO.cpp` 调用未定义的 `ensureParentDirPosix`。
+- 修复输入/输出文件填绝对路径时被拼到 `WorkDir` 之后：原先 `"<workDir>/<abs>"` 会拼出 `/wd//home/u/in.txt` 这种鬼路径，helper 于是备份/改写了错误的文件；新增 `joinWorkDir`，绝对路径原样使用。
+- 修复 Linux `createTempSubDir` 不创建父目录：`/tmp/dream-cpp-compiler` 被清理后 `mkdir` 必失败，helper 静默返回 -1（无任何提示）；现在先建父目录，失败时输出提示。
+- 镜像 `WorkDir` 时跳过 `.git` / `.hg` / `.svn` / `node_modules`，并加上限（20000 项 / 256 MB），超限提示一次后停止拷贝，不再每次运行都全量拷贝巨目录。
+- `tools/macOS/{ChangeFileIO,ConsoleInfoChangeFileIO}.cpp` 补 `#include <fcntl.h>`（用到 `open`/`O_RDONLY`）。
+- 新增 `.gitattributes`：统一 `* text=auto eol=lf`，并把历史上就是 CRLF 的 `readme.md`、`tools/{linux,windows}/ConsoleInfo.cpp` 标为 `-text`，避免提交时整文件行尾翻转。
+- 新增 `tests/workdir-tests.js`（11 项，已并入 `npm test`）：Windows/POSIX 分词、`workDirDirect` 优先级、注释/字符串误判、`FILE_HEADER_KEYS`、`getExtensionVersion`。
+- 新增 `tests/helper-workdir.sh`（5 项，需 g++，`npm run test:helper`）：直跑相对/绝对路径、`SIGINT`/`SIGTERM` 还原、镜像模式。
+
 ## 7.4.6
 
 - 新增「工作目录直跑」开关 `workDirDirect`（`workDirDirectDefaultValue`，默认 `false`）：置于「高级选项」，与 `useFileRedirect` 等同为文件头可覆盖配置（`// workDirDirect: true`）。无显式配置时首次打开自动检测——扫到 `fopen`/`freopen`/`ifstream`/`ofstream`/`fstream`/`filesystem` 即默认勾上，之后侧边栏改动写入文件头，不再自动覆盖。
