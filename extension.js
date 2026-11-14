@@ -446,6 +446,15 @@ function headerKeyValue(lineText, span) {
     };
 }
 
+function detectWorkDirDirect(filePath) {
+    try {
+        if (!filePath || !fs.existsSync(filePath)) return false;
+        const content = fs.readFileSync(filePath, 'utf8');
+        const patterns = [/\bfopen\s*\(/, /\bfreopen\s*\(/, /\bifstream\b/, /\bofstream\b/, /\bfstream\b/, /\bstd\s*::\s*filesystem\b/, /#\s*include\s*<filesystem>/, /#\s*include\s*<fstream>/];
+        return patterns.some(re => re.test(content));
+    } catch { return false; }
+}
+
 function parseFileHeaderConfig(filePath) {
     const baseName = getBaseName(filePath);
     let config = {
@@ -466,10 +475,12 @@ function parseFileHeaderConfig(filePath) {
         customVariable: getConfig('customVariableDefaultValue') || '',
         outputPath: (getConfig('outputPath') || '<cppDir>/<baseName>'),
         WorkDir: (getConfig('WorkDirDefaultValue') || '<cppDir>'),
+        workDirDirect: getConfig('workDirDirectDefaultValue') || false,
         tempCppPath: '',
         staticOption: getStaticOption(),
         compileCommand: getConfig('compileCommand') || '"<cPath>" "<cppPath>" <option> -o "<outPath>"'
     };
+    let hasExplicitWorkDirDirect = false;
     try {
         if (!fs.existsSync(filePath)) {
             // 文件不存在也返回默认配置：调用方（getFileConfig / 侧边栏）不应因此崩溃
@@ -528,7 +539,14 @@ function parseFileHeaderConfig(filePath) {
                 case 'workdir':
                     config.WorkDir = value;
                     break;
+                case 'workdirdirect':
+                    config.workDirDirect = (value.toLowerCase() === 'true' || value.toLowerCase() === 'yes' || value.toLowerCase() === 'y' || value === '1');
+                    hasExplicitWorkDirDirect = true;
+                    break;
             }
+        }
+        if (!hasExplicitWorkDirDirect) {
+            try { config.workDirDirect = detectWorkDirDirect(filePath); } catch {}
         }
     } catch (error) {
         ShowWarn(`解析文件 ${filePath} 头部配置时出错: ${error.message}`);
@@ -984,6 +1002,7 @@ async function runProgram(filePath, terminalType) {
         .replace(/<baseName>/g, baseName)
         .replace(/<workdir>/g, workdir)
         .replace(/<tmpDir>/g, tmpDir);
+    const workDirDirect = !!getFileConfig(filePath, 'workDirDirect');
     const effectiveWorkdir = WorkDir ? WorkDir : programDir;
     const UseConsoleInfo = getConfig('useConsoleInfo') || false;
 
@@ -1020,7 +1039,8 @@ async function runProgram(filePath, terminalType) {
         runCommand = await buildRunCommandWin(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile,
-            workDir: effectiveWorkdir
+            workDir: effectiveWorkdir,
+            workDirDirect: workDirDirect
         });
 
         if (moreCommand) {
@@ -1034,7 +1054,8 @@ async function runProgram(filePath, terminalType) {
         runCommand = await buildRunCommandLinux(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile,
-            workDir: effectiveWorkdir
+            workDir: effectiveWorkdir,
+            workDirDirect: workDirDirect
         });
 
         if (moreCommand) {
@@ -1049,7 +1070,8 @@ async function runProgram(filePath, terminalType) {
         runCommand = await buildRunCommandMacOS(toolPath, executablePath, {
             UseConsoleInfo, useFileRedirect, useUnFileRedirect,
             inputFile, outputFile, unFileInputFile, unFileOutputFile,
-            workDir: effectiveWorkdir
+            workDir: effectiveWorkdir,
+            workDirDirect: workDirDirect
         });
 
         if (moreCommand) {
@@ -1121,7 +1143,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
                 const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
                 const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
                 if(!result) return null;
-                return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.workDir || "")}""`;
+                return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
             } else {
                 return `cmd /c "${exeName}"`;
             }
@@ -1133,7 +1155,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.inputFile)} ${shellEscapeWin(opt.outputFile)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")}""`;
+            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.inputFile)} ${shellEscapeWin(opt.outputFile)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
         } else {
             const ModuleName = 'ChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
@@ -1141,7 +1163,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.inputFile)} ${shellEscapeWin(opt.outputFile)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")}""`;
+            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.inputFile)} ${shellEscapeWin(opt.outputFile)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
         }
     } else if (opt.useFileRedirect) {
         const inputIsCon = isConsoleDevicePath(opt.inputFile);
@@ -1164,7 +1186,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.inputFile)} ${shellEscapeWin(opt.outputFile)} ${shellEscapeWin(opt.workDir || "")}""`;
+            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.inputFile)} ${shellEscapeWin(opt.outputFile)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
         } else {
             if (inputIsCon && outputIsCon) return `cmd /c "${exeName}"`;
             if (inputIsCon) return `cmd /c ""${shellEscapeWin(exeName)}" > ${shellEscapeWin(opt.outputFile)}""`;
@@ -1180,7 +1202,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
                 const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
                 const result = await CompileModule(path.join(baseDir, 'windows', `${ModuleName}.cpp`), ModuleName, executablePath);
                 if(!result) return null;
-                return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.workDir || "")}""`;
+                return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
             } else {
                 return `cmd /c "${exeName}"`;
             }
@@ -1192,7 +1214,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")}""`;
+            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
         } else {
             const ModuleName = 'UnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', `${ModuleName}.exe`);
@@ -1200,7 +1222,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")}""`;
+            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.unFileInputFile)} ${shellEscapeWin(opt.unFileOutputFile)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
         }
     } else {
         if (opt.UseConsoleInfo) {
@@ -1210,7 +1232,7 @@ async function buildRunCommandWin(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.workDir || "")}""`;
+            return `cmd /c ""${shellEscapeWin(executablePath)}" ${shellEscapeWin(exeName)} ${shellEscapeWin(opt.workDir || "")} ${shellEscapeWin(opt.workDirDirect ? "1" : "0")}""`;
         } else {
             return `cmd /c "${exeName}"`;
         }
@@ -1232,7 +1254,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
                 const executablePath = path.join(getTempDir(), 'Module', ModuleName);
                 const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath);
                 if(!result) return null;
-                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
             } else {
                 return `"${exeName}"; echo`;
             }
@@ -1244,7 +1266,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             const ModuleName = 'ChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
@@ -1252,7 +1274,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         }
     } else if (opt.useFileRedirect) {
         const inputIsCon = isConsoleDevicePath(opt.inputFile);
@@ -1275,7 +1297,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             if (inputIsCon && outputIsCon) return `"${exeName}"; echo`;
             if (inputIsCon) return `${shellEscapePosix(exeName)} > ${shellEscapePosix(opt.outputFile)}; echo`;
@@ -1291,7 +1313,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
                 const executablePath = path.join(getTempDir(), 'Module', ModuleName);
                 const result = await CompileModule(path.join(baseDir, 'linux', `${ModuleName}.cpp`), ModuleName, executablePath, '');
                 if(!result) return null;
-                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
             } else {
                 return `"${exeName}"; echo`;
             }
@@ -1303,7 +1325,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             const ModuleName = 'UnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
@@ -1311,7 +1333,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         }
     } else {
         if (opt.UseConsoleInfo) {
@@ -1321,7 +1343,7 @@ async function buildRunCommandLinux(baseDir, exeName, opt) {
             if(!result){
                 return null;
             }
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             return `"${exeName}"; echo`;
         }
@@ -1346,7 +1368,7 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
                 const executablePath = path.join(getTempDir(), 'Module', ModuleName);
                 const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath);
                 if(!result) return null;
-                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
             } else {
                 return `"${exeName}"; echo`;
             }
@@ -1357,13 +1379,13 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result) return null;
             // macOS 下通常不需要 .exe 后缀，且路径处理逻辑与 Linux 类似
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             const ModuleName = 'ChangeFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath);
             if(!result) return null;
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         }
     } else if (opt.useFileRedirect) {
         const inputIsCon = isConsoleDevicePath(opt.inputFile);
@@ -1383,7 +1405,7 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.inputFile)} ${shellEscapePosix(opt.outputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             // macOS 也是类 Unix 系统，标准重定向符号与 Linux 一致
             if (inputIsCon && outputIsCon) return `"${exeName}"; echo`;
@@ -1400,7 +1422,7 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
                 const executablePath = path.join(getTempDir(), 'Module', ModuleName);
                 const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
                 if(!result) return null;
-                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+                return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
             } else {
                 return `"${exeName}"; echo`;
             }
@@ -1410,13 +1432,13 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             const ModuleName = 'UnFileIO';
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.unFileInputFile)} ${shellEscapePosix(opt.unFileOutputFile)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         }
     } else {
         if (opt.UseConsoleInfo) {
@@ -1424,7 +1446,7 @@ async function buildRunCommandMacOS(baseDir, exeName, opt) {
             const executablePath = path.join(getTempDir(), 'Module', ModuleName);
             const result = await CompileModule(path.join(baseDir, 'macOS', `${ModuleName}.cpp`), ModuleName, executablePath, '');
             if(!result) return null;
-            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")}; echo`;
+            return `${shellEscapePosix(executablePath)} ${shellEscapePosix(exeName)} ${shellEscapePosix(opt.workDir || "")} ${shellEscapePosix(opt.workDirDirect ? "1" : "0")}; echo`;
         } else {
             return `"${exeName}"; echo`;
         }
@@ -1682,6 +1704,12 @@ class CppCompilerSidebarProvider {
                     this.updateWebviewContent();
                     break;
                 }
+                case 'updateWorkDirDirect': {
+                    ShowInfo(`用户在侧边栏更新了 ${data.filePath} 的工作目录直跑，现在为：${data.value}`);
+                    setFileConfig(data.filePath, 'workDirDirect', data.value);
+                    this.updateWebviewContent();
+                    break;
+                }
 
                 case 'saveConfigToFile': {
                     try {
@@ -1830,6 +1858,7 @@ class CppCompilerSidebarProvider {
         let workdir = '';
         let tmpDir = '';
         let WorkDir = '';
+        let workDirDirect = false;
         let useTempFile = false;
 
         if (filePath) {
@@ -1851,6 +1880,7 @@ class CppCompilerSidebarProvider {
             customVariable = getFileConfig(filePath, 'customVariable');
             outputPath = getFileConfig(filePath, 'outputPath');
             WorkDir = getFileConfig(filePath, 'WorkDir') || '';
+            workDirDirect = !!getFileConfig(filePath, 'workDirDirect');
             useTempFile = !!getFileConfig(filePath, 'useTempFile');
             cppDir = path.dirname(filePath) || '';
             workdir = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || cppDir || '';
@@ -1884,6 +1914,7 @@ class CppCompilerSidebarProvider {
             customVariable: customVariable,
             outputPath: outputPath,
             WorkDir: WorkDir,
+            workDirDirect: workDirDirect,
             useTempFile: useTempFile
         });
 
@@ -2522,6 +2553,10 @@ class CppCompilerSidebarProvider {
                             <input type="checkbox" id="useTempFile">
                             <label for="useTempFile">以临时文件进行编译运行</label>
                         </div>
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="workDirDirect">
+                            <label for="workDirDirect" title="有额外文件读写时直接在工作目录运行，不拷贝到临时目录（自动检测可覆盖）">工作目录直跑（有额外文件读取）</label>
+                        </div>
                     </div>
                 </div>
 
@@ -2609,6 +2644,7 @@ class CppCompilerSidebarProvider {
                 const vscode = acquireVsCodeApi();
                 let filePath = '', baseName = ''; // 全局状态
                 let useTempFile = false;
+                let workDirDirect = false;
                 let WorkDir = '';
 
                 // ==========================================
@@ -2931,6 +2967,8 @@ class CppCompilerSidebarProvider {
                             // 切换文件后会沿用上一个文件的状态，取消勾选时就会误删目录。
                             useTempFile = !!data.useTempFile;
                             document.getElementById('useTempFile').checked = useTempFile;
+                            workDirDirect = !!data.workDirDirect;
+                            document.getElementById('workDirDirect').checked = workDirDirect;
                         }
 
                         ['compileOptions', 'runControl', 'advanced', 'fileOperations'].forEach(function(id) {
@@ -3004,6 +3042,14 @@ class CppCompilerSidebarProvider {
                         filePath: filePath
                     });
                 });
+                document.getElementById('workDirDirect').addEventListener('change', (e) => {
+                    workDirDirect = e.target.checked;
+                    vscode.postMessage({
+                        type: 'updateWorkDirDirect',
+                        filePath: filePath,
+                        value: workDirDirect
+                    });
+                });
 
                 const checkMap = {
                     'staticLinking': 'toggleStaticLinking',
@@ -3053,6 +3099,7 @@ class CppCompilerSidebarProvider {
                     configToSave['useFileRedirect'] = document.getElementById('useFileRedirect').checked.toString();
                     configToSave['useUnFileRedirect'] = document.getElementById('useUnFileRedirect').checked.toString();
                     configToSave['useConsoleInfo'] = document.getElementById('useConsoleInfo').checked.toString();
+                    configToSave['workDirDirect'] = document.getElementById('workDirDirect').checked.toString();
 
                     // 2. 获取编译选项 (直接取值)
                     configToSave['compileOptions'] = document.getElementById('compileOptions').value;

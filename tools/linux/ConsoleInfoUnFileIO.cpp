@@ -110,6 +110,49 @@ void mirrorWorkDir(const char* workDir, const char* tempDir, const char* ex1, co
     mirrorWorkDirRecursive(workDir, tempDir, ex1, ex2, ex3, ex4);
 }
 
+void ensureParentDirPosix(const char* filePath) {
+    char tmp[PATH_MAX];
+    strncpy(tmp, filePath, sizeof(tmp)-1);
+    tmp[sizeof(tmp)-1]=0;
+    char* slash = strrchr(tmp, '/');
+    if (!slash) return;
+    *slash = 0;
+    char cur[PATH_MAX] = "";
+    if (tmp[0] == '/') { strcpy(cur, "/"); }
+    char* p = strtok(tmp[0]=='/' ? tmp+1 : tmp, "/");
+    char built[PATH_MAX] = "";
+    if (tmp[0]=='/') strcpy(built, "/");
+    while (p) {
+        if (strlen(built) > 1 || built[0]!='/') {
+            if (strlen(built)>0 && built[strlen(built)-1]!='/') strcat(built, "/");
+        }
+        strcat(built, p);
+        mkdir(built, 0755);
+        p = strtok(nullptr, "/");
+    }
+}
+
+bool fileExistsPosix(const char* path) {
+    struct stat st;
+    return stat(path, &st)==0;
+}
+
+void backupFilePosix(const char* path, char* backupPath, size_t sz) {
+    backupPath[0]=0;
+    if (!fileExistsPosix(path)) return;
+    snprintf(backupPath, sz, "%s.dream_bak_%d", path, (int)getpid());
+    rename(path, backupPath);
+}
+
+void restoreFilePosix(const char* path, const char* backupPath) {
+    if (backupPath && *backupPath) {
+        unlink(path);
+        rename(backupPath, path);
+    } else {
+        unlink(path);
+    }
+}
+
 
 
 void removeDir(const char* path) {
@@ -201,7 +244,9 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 
 int main(int argc, char* argv[]) {
     const char* workDir = "";
-    if (argc == 5) workDir = argv[4];
+    bool workDirDirect = false;
+    if (argc == 6) { workDir = argv[4]; workDirDirect = argv[5][0]=='1'; }
+    else if (argc == 5) workDir = argv[4];
     else if (argc != 4) {
         printf("用法：ConsoleInfoUnFileIO <command> <inputFile> <outputFile>\n");
         return -1;
@@ -209,6 +254,36 @@ int main(int argc, char* argv[]) {
     bool inputIsCon = isConsoleFile(argv[2]);
     bool outputIsCon = isConsoleFile(argv[3]);
     if (inputIsCon && outputIsCon) return runTargetExe(argv[1], nullptr, nullptr);
+    if (workDirDirect && workDir && *workDir) {
+        char directInput[PATH_MAX] = {0}, directOutput[PATH_MAX] = {0};
+        char backupInput[PATH_MAX] = {0}, backupOutput[PATH_MAX] = {0};
+        if (!inputIsCon) {
+            snprintf(directInput, sizeof(directInput), "%s/%s", workDir, argv[2]);
+            ensureParentDirPosix(directInput);
+            backupFilePosix(directInput, backupInput, sizeof(backupInput));
+            if (!writeStdinToFile(directInput)) {
+                if (backupInput[0]) rename(backupInput, directInput);
+                return -1;
+            }
+        }
+        if (!outputIsCon) {
+            snprintf(directOutput, sizeof(directOutput), "%s/%s", workDir, argv[3]);
+            ensureParentDirPosix(directOutput);
+            backupFilePosix(directOutput, backupOutput, sizeof(backupOutput));
+        }
+        int ret = runTargetExe(argv[1], workDir, directOutput);
+        if (!outputIsCon && backupOutput[0]) {
+            unlink(directOutput);
+            rename(backupOutput, directOutput);
+        } else if (!outputIsCon) {
+            unlink(directOutput);
+        }
+        if (!inputIsCon) {
+            if (backupInput[0]) { unlink(directInput); rename(backupInput, directInput); }
+            else unlink(directInput);
+        }
+        return ret;
+    }
 
 
     char tempDir[PATH_MAX], tempInput[PATH_MAX], tempOutput[PATH_MAX];

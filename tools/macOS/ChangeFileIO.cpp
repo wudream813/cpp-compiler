@@ -108,6 +108,49 @@ void mirrorWorkDir(const char* workDir, const char* tempDir, const char* ex1, co
     mirrorWorkDirRecursive(workDir, tempDir, ex1, ex2, ex3, ex4);
 }
 
+void ensureParentDirPosix(const char* filePath) {
+    char tmp[PATH_MAX];
+    strncpy(tmp, filePath, sizeof(tmp)-1);
+    tmp[sizeof(tmp)-1]=0;
+    char* slash = strrchr(tmp, '/');
+    if (!slash) return;
+    *slash = 0;
+    char cur[PATH_MAX] = "";
+    if (tmp[0] == '/') { strcpy(cur, "/"); }
+    char* p = strtok(tmp[0]=='/' ? tmp+1 : tmp, "/");
+    char built[PATH_MAX] = "";
+    if (tmp[0]=='/') strcpy(built, "/");
+    while (p) {
+        if (strlen(built) > 1 || built[0]!='/') {
+            if (strlen(built)>0 && built[strlen(built)-1]!='/') strcat(built, "/");
+        }
+        strcat(built, p);
+        mkdir(built, 0755);
+        p = strtok(nullptr, "/");
+    }
+}
+
+bool fileExistsPosix(const char* path) {
+    struct stat st;
+    return stat(path, &st)==0;
+}
+
+void backupFilePosix(const char* path, char* backupPath, size_t sz) {
+    backupPath[0]=0;
+    if (!fileExistsPosix(path)) return;
+    snprintf(backupPath, sz, "%s.dream_bak_%d", path, (int)getpid());
+    rename(path, backupPath);
+}
+
+void restoreFilePosix(const char* path, const char* backupPath) {
+    if (backupPath && *backupPath) {
+        unlink(path);
+        rename(backupPath, path);
+    } else {
+        unlink(path);
+    }
+}
+
 
 
 #ifndef MAX_PATH
@@ -224,7 +267,9 @@ int runExe(const char* exePath, const char* workingDir) {
 
 int main(int argc, char* argv[]) {
     const char* workDir = "";
-    if (argc == 7) workDir = argv[6];
+    bool workDirDirect = false;
+    if (argc == 8) { workDir = argv[6]; workDirDirect = argv[7][0]=='1'; }
+    else if (argc == 7) workDir = argv[6];
     else if (argc != 6) {
         printf("用法：ChangeFileIO <command> <PrograminputFile> <ProgramoutputFile> <WillinputFile> <WilloutputFile>\n");
         return -1;
@@ -235,6 +280,54 @@ int main(int argc, char* argv[]) {
     bool willOutputIsCon = isConsoleFile(argv[5]);
     if (willInputIsCon && willOutputIsCon) {
         return runExe(argv[1], nullptr);
+    }
+    if (workDirDirect && workDir && *workDir) {
+        char directInput[PATH_MAX] = {0}, directOutput[PATH_MAX] = {0};
+        char backupInput[PATH_MAX] = {0}, backupOutput[PATH_MAX] = {0};
+        if (!willInputIsCon) {
+            snprintf(directInput, sizeof(directInput), "%s/%s", workDir, argv[4]);
+            ensureParentDirPosix(directInput);
+            backupFilePosix(directInput, backupInput, sizeof(backupInput));
+            if (progInputIsCon) {
+                if (!writeStdinToFile(directInput)) {
+                    if (backupInput[0]) rename(backupInput, directInput);
+                    return -1;
+                }
+            } else {
+                backupFilePosix(argv[2], nullptr, 0); // not needed
+                if (!copyFileLinux(argv[2], directInput)) {
+                    if (backupInput[0]) rename(backupInput, directInput);
+                    printf("无法复制输入文件到工作目录\n");
+                    return -1;
+                }
+            }
+        }
+        if (!willOutputIsCon) {
+            snprintf(directOutput, sizeof(directOutput), "%s/%s", workDir, argv[5]);
+            ensureParentDirPosix(directOutput);
+            backupFilePosix(directOutput, backupOutput, sizeof(backupOutput));
+        }
+        int ret = runExe(argv[1], workDir);
+        if (!willOutputIsCon) {
+            if (progOutputIsCon) {
+                dumpFileToStdout(directOutput);
+                unlink(directOutput);
+                if (backupOutput[0]) rename(backupOutput, directOutput);
+            } else {
+                copyFileLinux(directOutput, argv[3]);
+                unlink(directOutput);
+                if (backupOutput[0]) rename(backupOutput, directOutput);
+            }
+        }
+        if (!willInputIsCon) {
+            if (backupInput[0]) {
+                unlink(directInput);
+                rename(backupInput, directInput);
+            } else {
+                unlink(directInput);
+            }
+        }
+        return ret;
     }
     const char* commandArg = argv[1];
     const char* programInput = argv[2];

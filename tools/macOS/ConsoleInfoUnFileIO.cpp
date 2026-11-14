@@ -112,6 +112,49 @@ void mirrorWorkDir(const char* workDir, const char* tempDir, const char* ex1, co
     mirrorWorkDirRecursive(workDir, tempDir, ex1, ex2, ex3, ex4);
 }
 
+void ensureParentDirPosix(const char* filePath) {
+    char tmp[PATH_MAX];
+    strncpy(tmp, filePath, sizeof(tmp)-1);
+    tmp[sizeof(tmp)-1]=0;
+    char* slash = strrchr(tmp, '/');
+    if (!slash) return;
+    *slash = 0;
+    char cur[PATH_MAX] = "";
+    if (tmp[0] == '/') { strcpy(cur, "/"); }
+    char* p = strtok(tmp[0]=='/' ? tmp+1 : tmp, "/");
+    char built[PATH_MAX] = "";
+    if (tmp[0]=='/') strcpy(built, "/");
+    while (p) {
+        if (strlen(built) > 1 || built[0]!='/') {
+            if (strlen(built)>0 && built[strlen(built)-1]!='/') strcat(built, "/");
+        }
+        strcat(built, p);
+        mkdir(built, 0755);
+        p = strtok(nullptr, "/");
+    }
+}
+
+bool fileExistsPosix(const char* path) {
+    struct stat st;
+    return stat(path, &st)==0;
+}
+
+void backupFilePosix(const char* path, char* backupPath, size_t sz) {
+    backupPath[0]=0;
+    if (!fileExistsPosix(path)) return;
+    snprintf(backupPath, sz, "%s.dream_bak_%d", path, (int)getpid());
+    rename(path, backupPath);
+}
+
+void restoreFilePosix(const char* path, const char* backupPath) {
+    if (backupPath && *backupPath) {
+        unlink(path);
+        rename(backupPath, path);
+    } else {
+        unlink(path);
+    }
+}
+
 
 
 #ifndef MAX_PATH
@@ -213,8 +256,33 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) return -1;
+    const char* workDir = "";
+    bool workDirDirect = false;
+    if (argc == 6) { workDir = argv[4]; workDirDirect = argv[5][0]=='1'; }
+    else if (argc == 5) workDir = argv[4];
+    else if (argc != 4) return -1;
 
+    if (workDirDirect && workDir && *workDir) {
+        char directInput[MAX_PATH] = {0}, directOutput[MAX_PATH] = {0};
+        char backupInput[MAX_PATH] = {0}, backupOutput[MAX_PATH] = {0};
+        snprintf(directInput, sizeof(directInput), "%s/%s", workDir, argv[2]);
+        snprintf(directOutput, sizeof(directOutput), "%s/%s", workDir, argv[3]);
+        ensureParentDirPosix(directInput);
+        ensureParentDirPosix(directOutput);
+        backupFilePosix(directInput, backupInput, sizeof(backupInput));
+        backupFilePosix(directOutput, backupOutput, sizeof(backupOutput));
+        if (!writeStdinToFile(directInput)) {
+            if (backupInput[0]) rename(backupInput, directInput);
+            if (backupOutput[0]) rename(backupOutput, directOutput);
+            return -1;
+        }
+        int ret = runTargetExe(argv[1], workDir, directOutput);
+        if (backupOutput[0]) { unlink(directOutput); rename(backupOutput, directOutput); }
+        else unlink(directOutput);
+        if (backupInput[0]) { unlink(directInput); rename(backupInput, directInput); }
+        else unlink(directInput);
+        return ret;
+    }
     char tempDir[MAX_PATH], tempInput[MAX_PATH], tempOutput[MAX_PATH];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) return -1;
 

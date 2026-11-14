@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <conio.h>
 
-// ×Ô¶¨Òå PROCESS_MEMORY_COUNTERS ½á¹¹
+// Ô¶ PROCESS_MEMORY_COUNTERS á¹¹
 typedef struct _PROCESS_MEMORY_COUNTERS {
     DWORD cb;
     DWORD PageFaultCount;
@@ -16,12 +16,16 @@ typedef struct _PROCESS_MEMORY_COUNTERS {
     SIZE_T PeakPagefileUsage;
 } PROCESS_MEMORY_COUNTERS;
 
-// º¯ÊýÖ¸ÕëÀàÐÍ
+// Ö¸
 typedef BOOL(WINAPI *PFN_GetProcessMemoryInfo)(HANDLE, PROCESS_MEMORY_COUNTERS*, DWORD);
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("ÓÃ·¨£ºConsoleInfo.exe <command>\n");
+    const char* workDir = "";
+    bool workDirDirect = false;
+    if (argc == 4) { workDir = argv[2]; workDirDirect = argv[3][0]=='1'; }
+    else if (argc == 3) workDir = argv[2];
+    else if (argc != 2) {
+        printf("Ã·ConsoleInfo.exe <command>\n");
         return -1;
     }
 
@@ -39,14 +43,14 @@ int main(int argc, char* argv[]) {
     snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", argv[1]);
 
     if (!CreateProcessA(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo)) {
-        printf("\nÎÞ·¨´´½¨½ø³Ì£º%s", cmdLine);
+        printf("\nÞ·Ì£%s", cmdLine);
         return -1;
     }
 
-    // µÈ´ý½ø³Ì½áÊø
+    // È´Ì½
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
 
-    // ¶¯Ì¬¼ÓÔØ GetProcessMemoryInfo
+    // Ì¬ GetProcessMemoryInfo
     PROCESS_MEMORY_COUNTERS pmc = {0};
     HMODULE hPsapi = LoadLibraryA("Psapi.dll");
     if (hPsapi) {
@@ -59,19 +63,19 @@ int main(int argc, char* argv[]) {
         FreeLibrary(hPsapi);
     }
 
-    // »ñÈ¡CPUÊ±¼ä
+    // È¡CPUÊ±
     FILETIME creationTime, exitTime, kernelTime, userTime;
     GetProcessTimes(ProcessInfo.hProcess, &creationTime, &exitTime, &kernelTime, &userTime);
 
-    // ¼ÆËã×ÜÔËÐÐÊ±¼ä
+    // Ê±
     QueryPerformanceCounter(&EndingTime);
     LONGLONG executionTime = (EndingTime.QuadPart - StartingTime.QuadPart) * 1000000 / Frequency.QuadPart;
 
-    // »ñÈ¡³ÌÐòÍË³ö´úÂë
+    // È¡Ë³
     DWORD returnValue;
     GetExitCodeProcess(ProcessInfo.hProcess, &returnValue);
 
-    // ½«FILETIME×ª»»ÎªÎ¢Ãë
+    // FILETIME×ªÎªÎ¢
     ULARGE_INTEGER kernelTimeUL, userTimeUL;
     kernelTimeUL.LowPart = kernelTime.dwLowDateTime;
     kernelTimeUL.HighPart = kernelTime.dwHighDateTime;
@@ -81,18 +85,18 @@ int main(int argc, char* argv[]) {
     ULONGLONG totalKernelTime = kernelTimeUL.QuadPart / 10;
     ULONGLONG totalUserTime = userTimeUL.QuadPart / 10;
 
-    // ¹Ø±Õ¾ä±ú
+    // Ø±Õ¾
     CloseHandle(ProcessInfo.hProcess);
     CloseHandle(ProcessInfo.hThread);
 
-    // Êä³ö½á¹û
+    // 
     printf("\n-----------------------------------------------");
-    printf("\n×ÜÖ´ÐÐÊ±¼ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
-    printf("\nÄÚ´æ·åÖµ£º%llu KB", pmc.PeakWorkingSetSize >> 10);
-    printf("\nCPUÄÚºËÊ±¼ä£º%.3f Ãë", totalKernelTime / 1000000.0);
-    printf("\nCPUÓÃ»§Ê±¼ä£º%.3f Ãë", totalUserTime / 1000000.0);
-    printf("\n×ÜCPUÊ±¼ä£º%.3f Ãë", (totalKernelTime + totalUserTime) / 1000000.0);
-    printf("\n³ÌÐò·µ»ØÖµ£º%ld (0x%lX)", returnValue, returnValue);
+    printf("\nÖ´Ê±ä£º%lld.%03lld ms", executionTime / 1000, executionTime % 1000);
+    printf("\nÚ´Öµ%llu KB", pmc.PeakWorkingSetSize >> 10);
+    printf("\nCPUÚºÊ±ä£º%.3f ", totalKernelTime / 1000000.0);
+    printf("\nCPUÃ»Ê±ä£º%.3f ", totalUserTime / 1000000.0);
+    printf("\nCPUÊ±ä£º%.3f ", (totalKernelTime + totalUserTime) / 1000000.0);
+    printf("\nò·µ»Öµ%ld (0x%lX)", returnValue, returnValue);
     printf("\n-----------------------------------------------");
 
     return 0;

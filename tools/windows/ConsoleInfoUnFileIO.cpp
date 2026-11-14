@@ -73,6 +73,55 @@ void mirrorWorkDirWin(const char* workDir, const char* tempDir, const char* ex1,
     FindClose(hFind);
 }
 
+void ensureParentDirWin(const char* filePath) {
+    char tmp[MAX_PATH];
+    strncpy(tmp, filePath, sizeof(tmp)-1);
+    tmp[sizeof(tmp)-1]=0;
+    char* slash = strrchr(tmp, '\\');
+    char* slash2 = strrchr(tmp, '/');
+    char* s = slash;
+    if (slash2 && (!s || slash2 > s)) s = slash2;
+    if (!s) return;
+    *s = 0;
+    char built[MAX_PATH] = "";
+    char* p = tmp;
+    if (strlen(tmp)>=2 && tmp[1]==':') {
+        built[0]=tmp[0]; built[1]=':'; built[2]='\\'; built[3]=0;
+        p = tmp+3;
+        if (*p=='\\' || *p=='/') p++;
+    }
+    char* token = strtok(p, "\\/");
+    while (token) {
+        if (strlen(built) > 0 && built[strlen(built)-1]!='\\' && built[strlen(built)-1]!='/') {
+            if (strlen(built)>0) strcat(built, "\\");
+        }
+        strcat(built, token);
+        CreateDirectoryA(built, NULL);
+        token = strtok(nullptr, "\\/");
+    }
+}
+
+bool fileExistsWinDirect(const char* path) {
+    DWORD attr = GetFileAttributesA(path);
+    return attr != INVALID_FILE_ATTRIBUTES;
+}
+
+void backupFileWinDirect(const char* path, char* backupPath, size_t sz) {
+    backupPath[0]=0;
+    if (!fileExistsWinDirect(path)) return;
+    snprintf(backupPath, sz, "%s.dream_bak_%d", path, (int)GetCurrentProcessId());
+    MoveFileA(path, backupPath);
+}
+
+void restoreFileWinDirect(const char* path, const char* backupPath) {
+    if (backupPath && *backupPath) {
+        DeleteFileA(path);
+        MoveFileA(backupPath, path);
+    } else {
+        DeleteFileA(path);
+    }
+}
+
 
 
 // Զ PROCESS_MEMORY_COUNTERS ṹ
@@ -221,7 +270,9 @@ int runTargetExe(const char* exePath, const char* workingDir, const char* output
 
 int main(int argc, char* argv[]) {
     const char* workDir = "";
-    if (argc == 5) workDir = argv[4];
+    bool workDirDirect = false;
+    if (argc == 6) { workDir = argv[4]; workDirDirect = argv[5][0]=='1'; }
+    else if (argc == 5) workDir = argv[4];
     else if (argc != 4) {
         printf("÷ConsoleInfoUnFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
@@ -229,6 +280,34 @@ int main(int argc, char* argv[]) {
     bool inputIsCon = isConsoleFile(argv[2]);
     bool outputIsCon = isConsoleFile(argv[3]);
     if (inputIsCon && outputIsCon) return runTargetExe(argv[1], nullptr, nullptr);
+    if (workDirDirect && workDir && *workDir) {
+        char directInput[MAX_PATH] = {0}, directOutput[MAX_PATH] = {0};
+        char backupInput[MAX_PATH] = {0}, backupOutput[MAX_PATH] = {0};
+        if (!inputIsCon) {
+            snprintf(directInput, sizeof(directInput), "%s\\%s", workDir, argv[2]);
+            ensureParentDirWin(directInput);
+            backupFileWinDirect(directInput, backupInput, sizeof(backupInput));
+            if (!writeStdinToFile(directInput)) {
+                if (backupInput[0]) MoveFileA(backupInput, directInput);
+                return -1;
+            }
+        }
+        if (!outputIsCon) {
+            snprintf(directOutput, sizeof(directOutput), "%s\\%s", workDir, argv[3]);
+            ensureParentDirWin(directOutput);
+            backupFileWinDirect(directOutput, backupOutput, sizeof(backupOutput));
+        }
+        int ret = runTargetExe(argv[1], workDir, directOutput);
+        if (!outputIsCon) {
+            if (backupOutput[0]) { DeleteFileA(directOutput); MoveFileA(backupOutput, directOutput); }
+            else DeleteFileA(directOutput);
+        }
+        if (!inputIsCon) {
+            if (backupInput[0]) { DeleteFileA(directInput); MoveFileA(backupInput, directInput); }
+            else DeleteFileA(directInput);
+        }
+        return ret;
+    }
 
 
     const char *inputFile = argv[2];

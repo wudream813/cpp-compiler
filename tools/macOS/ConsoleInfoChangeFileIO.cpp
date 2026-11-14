@@ -196,8 +196,34 @@ int runTargetExe(const char* exePath, const char* workingDir) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 6) return -1;
+    const char* workDir = "";
+    bool workDirDirect = false;
+    if (argc == 8) { workDir = argv[6]; workDirDirect = argv[7][0]=='1'; }
+    else if (argc == 7) workDir = argv[6];
+    else if (argc != 6) return -1;
 
+    if (workDirDirect && workDir && *workDir) {
+        char directInput[MAX_PATH] = {0}, directOutput[MAX_PATH] = {0};
+        char backupInput[MAX_PATH] = {0}, backupOutput[MAX_PATH] = {0};
+        snprintf(directInput, sizeof(directInput), "%s/%s", workDir, argv[4]);
+        snprintf(directOutput, sizeof(directOutput), "%s/%s", workDir, argv[5]);
+        ensureParentDirPosix(directInput);
+        ensureParentDirPosix(directOutput);
+        backupFilePosix(directInput, backupInput, sizeof(backupInput));
+        backupFilePosix(directOutput, backupOutput, sizeof(backupOutput));
+        if (!copyFileMac(argv[2], directInput)) {
+            if (backupInput[0]) rename(backupInput, directInput);
+            if (backupOutput[0]) rename(backupOutput, directOutput);
+            return -1;
+        }
+        int ret = runTargetExe(argv[1], workDir);
+        copyFileMac(directOutput, argv[3]);
+        unlink(directOutput);
+        if (backupOutput[0]) rename(backupOutput, directOutput);
+        if (backupInput[0]) { unlink(directInput); rename(backupInput, directInput); }
+        else unlink(directInput);
+        return ret;
+    }
     char tempDir[MAX_PATH], tempInput[MAX_PATH], tempOutput[MAX_PATH];
     if (!createTempSubDir(tempDir, sizeof(tempDir))) return -1;
 

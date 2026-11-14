@@ -1,3 +1,9 @@
+## 7.4.6
+
+- 新增「工作目录直跑」开关 `workDirDirect`（`workDirDirectDefaultValue`，默认 `false`）：置于「高级选项」，与 `useFileRedirect` 等同为文件头可覆盖配置（`// workDirDirect: true`）。无显式配置时首次打开自动检测——扫到 `fopen`/`freopen`/`ifstream`/`ofstream`/`fstream`/`filesystem` 即默认勾上，之后侧边栏改动写入文件头，不再自动覆盖。
+- 反文件读写在 `WorkDirDirect=true` 时启用直跑分支：`extension.js` 的 `buildRunCommand*` 透传 `workDirDirect` 至 helper 末参（`1/0`），`tools/*/UnFileIO|ChangeFileIO|ConsoleInfo*` 解析 `workDirDirect` 后 `chdir(WorkDir)` 直接使用 `WorkDir/<inputFile>`（`ensureParentDir` + 备份恢复避免覆盖用户文件），无额外文件时仍走 `/tmp` 镜像（`mirrorWorkDir`），大目录免拷贝 `O(N)` → `O(1)`。
+- `tmp` 语义保持为系统临时目录占位符 `<tmpDir>`，直跑时不使用 `/tmp`，保持与 `outputPath`/`WorkDir` 模板一致。
+
 ## 7.4.5
 
 - 修复“反文件读写 + 指定目录运行”失效：`runProgram` 在外层 `cd effectiveWorkdir` 后再 `UnFileIO`，但 `UnFileIO`/`ChangeFileIO` 内部又 `chdir(tempDir)`/`CreateProcess(workingDir=tempDir)`，导致 `fopen("data/a.txt")` 等相对路径解析到 `/tmp/...` 而非 `WorkDir`；现 `extension.js` 的 `buildRunCommand*` 透传 `workDir: effectiveWorkdir` 至 helper 第 6/5 参数，`tools/{linux,macOS,windows}/{UnFileIO,ChangeFileIO,ConsoleInfo*}.cpp` 解析可选 `workDir` 并在 `needTemp` 时 `mirrorWorkDir(Win)` 将 `WorkDir` 资源递归镜像到 `tempDir`（`lstat` + `S_ISLNK` 跳链接、`pid+rand` 防并发、`isConsoleFile` CON 直通保留），`WorkDir/data/a.txt` 现可被 `fopen` 正常读取。

@@ -7,7 +7,11 @@
 #include <time.h>
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
+    const char* workDir = "";
+    bool workDirDirect = false;
+    if (argc == 4) { workDir = argv[2]; workDirDirect = argv[3][0]=='1'; }
+    else if (argc == 3) workDir = argv[2];
+    else if (argc != 2) {
         printf("用法：ConsoleInfo <command>\n");
         return -1;
     }

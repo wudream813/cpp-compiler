@@ -1,7 +1,7 @@
 {
 	"name": "dream-cpp-compiler",
 	"displayName": "Wu_Dream 的 C++ 编译器",
-	"version": "7.4.5",
+	"version": "7.4.6",
 	"publisher": "wudream",
 	"description": "由 wu_dream 制作的 C++ 编译器加强版！",
 	"keywords": [
@@ -270,6 +270,11 @@
 					"type": "string",
 					"default": "<cppDir>",
 					"description": "工作目录 (可以使用 <cppDir> 代表源文件所在目录，<baseName> 代表不带后缀名的文件名，<workdir> 代表工作区目录(未打开则就是源文件所在目录)，<tmpDir> 代表临时目录)"
+				},
+				"dream-cpp-compiler.workDirDirectDefaultValue": {
+					"type": "boolean",
+					"default": false,
+					"description": "有额外文件读写时直接在工作目录运行（有额外 fopen/ifstream 时在 WorkDir 直跑，不拷贝到临时目录，适用于大目录）"
 				},
 				"dream-cpp-compiler.staticOption": {
 					"type": "string",

@@ -51,7 +51,11 @@ void SetHandleInheritance(HANDLE hHandle, bool inherit) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
+    const char* workDir = "";
+    bool workDirDirect = false;
+    if (argc == 6) { workDir = argv[4]; workDirDirect = argv[5][0]=='1'; }
+    else if (argc == 5) workDir = argv[4];
+    else if (argc != 4) {
         printf("÷ConsoleInfoFileIO.exe <command> <inputFile> <outputFile>\n");
         return -1;
     }
